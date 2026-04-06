@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 const pingCommand = require("./commands/ping.js");
+const apostaCommand = require("./commands/aposta.js");
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -18,7 +19,8 @@ client.once("clientReady", async () => {
             Routes.applicationCommands(clientId),
             {
                 body: [
-                    pingCommand.data.toJSON()
+                    pingCommand.data.toJSON(),
+                    apostaCommand.data.toJSON()
                 ]
             }
         );
@@ -34,6 +36,10 @@ client.on("interactionCreate", async (interaction) => {
 
     if (interaction.commandName === pingCommand.data.name) {
         return pingCommand.execute(interaction);
+    }
+
+    if (interaction.commandName === apostaCommand.data.name) {
+        return apostaCommand.execute(interaction);
     }
 });
 
