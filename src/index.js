@@ -3,16 +3,22 @@ require("dotenv").config();
 const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 
 const pingCommand = require("./commands/ping.js");
-const apostaCommand = require("./commands/aposta.js");
 const saldoCommand = require("./commands/saldo.js");
+const criarApostaCommand = require("./commands/criar-aposta.js");
+const apostarCommand = require("./commands/apostar.js");
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-// apostas salvas por jogo
-const apostas = {};
+// saldos dos usuários
 const saldos = {};
+
+// jogos criados com odds
+const jogos = {};
+
+// apostas com valor
+const apostasValores = {};
 
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -27,10 +33,11 @@ client.once("clientReady", async () => {
             Routes.applicationCommands(clientId),
             {
                 body: [
-    pingCommand.data.toJSON(),
-    apostaCommand.data.toJSON(),
-    saldoCommand.data.toJSON()
-]
+                    pingCommand.data.toJSON(),
+                    saldoCommand.data.toJSON(),
+                    criarApostaCommand.data.toJSON(),
+                    apostarCommand.data.toJSON()
+                ]
             }
         );
 
@@ -41,49 +48,22 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
 
-    // comandos
-    if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === pingCommand.data.name) {
-            return pingCommand.execute(interaction);
-        }
-
-        if (interaction.commandName === apostaCommand.data.name) {
-            return apostaCommand.execute(interaction);
-        }
-        if (interaction.commandName === saldoCommand.data.name) {
-    return saldoCommand.execute(interaction, saldos);
-}
+    if (interaction.commandName === pingCommand.data.name) {
+        return pingCommand.execute(interaction);
     }
 
-    // botões
-    if (interaction.isButton()) {
-        const userId = interaction.user.id;
-        const escolha = interaction.customId;
+    if (interaction.commandName === saldoCommand.data.name) {
+        return saldoCommand.execute(interaction, saldos);
+    }
 
-        // usa o ID da mensagem como identificador único do jogo
-        const jogoId = interaction.message.id;
+    if (interaction.commandName === criarApostaCommand.data.name) {
+        return criarApostaCommand.execute(interaction, jogos);
+    }
 
-        // cria espaço do jogo se não existir
-        if (!apostas[jogoId]) {
-            apostas[jogoId] = {};
-        }
-
-        // impedir aposta duplicada no mesmo jogo
-        if (apostas[jogoId][userId]) {
-            return interaction.reply({
-                content: "❌ Você já fez sua aposta nesse jogo!",
-                ephemeral: true
-            });
-        }
-
-        // salvar aposta do usuário nesse jogo
-        apostas[jogoId][userId] = escolha;
-
-        return interaction.reply({
-            content: `✅ Você apostou em: **${interaction.component.label}**`,
-            ephemeral: true
-        });
+    if (interaction.commandName === apostarCommand.data.name) {
+        return apostarCommand.execute(interaction, saldos, jogos, apostasValores);
     }
 });
 
