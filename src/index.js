@@ -4,6 +4,7 @@ const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 
 const pingCommand = require("./commands/ping.js");
 const apostaCommand = require("./commands/aposta.js");
+const saldoCommand = require("./commands/saldo.js");
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
