@@ -19,11 +19,11 @@ module.exports = {
                 .setRequired(true))
         .addNumberOption(option =>
             option.setName("odd1")
-                .setDescription("Odd do time1. Ex: 270 para 2.70")
+                .setDescription("Odd do primeiro time")
                 .setRequired(true))
         .addNumberOption(option =>
             option.setName("oddempate")
-                .setDescription("Odd do empate. Ex: 325 para 3.25")
+                .setDescription("Odd do empate")
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("time2")
@@ -31,32 +31,41 @@ module.exports = {
                 .setRequired(true))
         .addNumberOption(option =>
             option.setName("odd2")
-                .setDescription("Odd do time2. Ex: 240 para 2.40")
+                .setDescription("Odd do segundo time")
                 .setRequired(true)),
 
-    async execute(interaction, jogos) {
-        const jogo = interaction.options.getString("jogo");
-        const time1 = interaction.options.getString("time1");
-        const time2 = interaction.options.getString("time2");
+    async execute(interaction, jogos, saveData) {
+        const jogo = interaction.options.getString("jogo").trim().toLowerCase();
+        const time1 = interaction.options.getString("time1").trim();
+        const odd1 = interaction.options.getNumber("odd1");
+        const oddEmpate = interaction.options.getNumber("oddempate");
+        const time2 = interaction.options.getString("time2").trim();
+        const odd2 = interaction.options.getNumber("odd2");
 
-        const odd1 = interaction.options.getNumber("odd1") / 100;
-        const oddEmpate = interaction.options.getNumber("oddempate") / 100;
-        const odd2 = interaction.options.getNumber("odd2") / 100;
+        if (jogos[jogo]) {
+            return interaction.reply({
+                content: "❌ Já existe um jogo com esse identificador.",
+                ephemeral: true
+            });
+        }
 
         jogos[jogo] = {
             time1,
-            time2,
             odd1,
             oddEmpate,
+            time2,
             odd2,
-            aberto: true
+            aberto: true,
+            resultado: null
         };
+
+        saveData();
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`bet|${jogo}|time1`)
-                .setLabel(`${time1.toUpperCase()} (${odd1.toFixed(2)})`)
-                .setStyle(ButtonStyle.Success),
+                .setLabel(`${time1} (${odd1.toFixed(2)})`)
+                .setStyle(ButtonStyle.Primary),
 
             new ButtonBuilder()
                 .setCustomId(`bet|${jogo}|empate`)
@@ -65,22 +74,18 @@ module.exports = {
 
             new ButtonBuilder()
                 .setCustomId(`bet|${jogo}|time2`)
-                .setLabel(`${time2.toUpperCase()} (${odd2.toFixed(2)})`)
+                .setLabel(`${time2} (${odd2.toFixed(2)})`)
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({
+        return interaction.reply({
             content:
-`⚽ **APOSTA ABERTA**
+`🎮 **Nova aposta criada**
 
-🎮 **${time1.toUpperCase()} x ${time2.toUpperCase()}**
-🆔 Jogo: \`${jogo}\`
+🆔 Jogo: **${jogo}**
+⚽ **${time1}** x **${time2}**
 
-🔥 **${time1.toUpperCase()}** — odd **${odd1.toFixed(2)}**
-🤝 **Empate** — odd **${oddEmpate.toFixed(2)}**
-🔥 **${time2.toUpperCase()}** — odd **${odd2.toFixed(2)}**
-
-💰 Clique em uma opção abaixo para apostar.`,
+Escolha uma opção abaixo para adicionar ao seu bilhete.`,
             components: [row]
         });
     }
