@@ -6,7 +6,7 @@ const {
 } = require("discord.js");
 
 function formatOdd(valor) {
-    return (Number(valor) / 100).toFixed(2);
+    return Number(valor).toFixed(2);
 }
 
 module.exports = {
