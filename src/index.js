@@ -19,13 +19,8 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-// saldo dos usuários
 const saldos = {};
-
-// jogos criados
 const jogos = {};
-
-// apostas salvas
 const apostasValores = {};
 
 client.once("clientReady", async () => {
@@ -55,8 +50,6 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-
-    // COMANDOS
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === pingCommand.data.name) {
             return pingCommand.execute(interaction);
@@ -71,11 +64,11 @@ client.on("interactionCreate", async (interaction) => {
         }
     }
 
-    // CLIQUE NOS BOTÕES
     if (interaction.isButton()) {
         const [tipo, jogo, escolha] = interaction.customId.split("|");
 
         if (tipo !== "bet") return;
+
         if (!jogos[jogo]) {
             return interaction.reply({
                 content: "❌ Esse jogo não existe mais.",
@@ -115,7 +108,7 @@ client.on("interactionCreate", async (interaction) => {
             .setCustomId("valor")
             .setLabel("Digite o valor da sua aposta")
             .setStyle(TextInputStyle.Short)
-            .setPlaceholder("Ex: 10")
+            .setPlaceholder("Ex: 20")
             .setRequired(true);
 
         const row = new ActionRowBuilder().addComponents(valorInput);
@@ -124,11 +117,11 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ENVIO DO POPUP
     if (interaction.isModalSubmit()) {
         const [tipo, jogo, escolha] = interaction.customId.split("|");
 
         if (tipo !== "betmodal") return;
+
         if (!jogos[jogo]) {
             return interaction.reply({
                 content: "❌ Esse jogo não existe mais.",
