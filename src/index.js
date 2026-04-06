@@ -1,10 +1,13 @@
 require("dotenv").config();
 
 const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
+
 const pingCommand = require("./commands/ping.js");
 const apostaCommand = require("./commands/aposta.js");
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+    intents: [GatewayIntentBits.Guilds]
+});
 
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -32,19 +35,30 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
+    if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === pingCommand.data.name) {
+            return pingCommand.execute(interaction);
+        }
 
-    if (interaction.commandName === pingCommand.data.name) {
-        return pingCommand.execute(interaction);
+        if (interaction.commandName === apostaCommand.data.name) {
+            return apostaCommand.execute(interaction);
+        }
     }
 
-    if (interaction.commandName === apostaCommand.data.name) {
-        return apostaCommand.execute(interaction);
+    if (interaction.isButton()) {
+        const escolha = interaction.customId;
+
+        if (escolha === "time1" || escolha === "empate" || escolha === "time2") {
+            return interaction.reply({
+                content: `✅ Você apostou em: **${interaction.component.label}**`,
+                ephemeral: true
+            });
+        }
     }
 });
 
 if (!process.env.TOKEN) {
-    console.error("Error: Discord bot token is not defined in environment variables. Set the TOKEN environment variable.");
+    console.error("Erro: TOKEN não definido.");
     process.exit(1);
 }
 
