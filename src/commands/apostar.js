@@ -1,5 +1,13 @@
 const { SlashCommandBuilder } = require("discord.js");
 
+function formatOdd(valor) {
+    return (Number(valor) / 100).toFixed(2);
+}
+
+function oddDecimal(valor) {
+    return Number(valor) / 100;
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("apostar")
@@ -71,7 +79,8 @@ module.exports = {
         if (escolha === "empate") odd = jogos[jogo].oddEmpate;
         if (escolha === "time2") odd = jogos[jogo].odd2;
 
-        const retornoPossivel = valor * odd;
+        const oddCalculada = oddDecimal(odd);
+        const retornoPossivel = valor * oddCalculada;
 
         saldos[userId] -= valor;
 
@@ -88,7 +97,7 @@ module.exports = {
 🎮 Jogo: **${jogo}**
 🎯 Escolha: **${escolha}**
 💰 Valor apostado: **${valor} moedas**
-📈 Odd travada: **${odd.toFixed(2)}**
+📈 Odd travada: **${formatOdd(odd)}**
 💸 Retorno possível: **${retornoPossivel.toFixed(2)} moedas**
 💳 Saldo restante: **${saldos[userId]} moedas**`,
             ephemeral: true
