@@ -20,7 +20,8 @@ const saldoCommand = require("./commands/saldo.js");
 const apostaCommand = require("./commands/aposta.js");
 const apostarCommand = require("./commands/apostar.js");
 const criarApostaCommand = require("./commands/criar-aposta.js");
-const finalizarJogoCommand = require("./commands/finalizar-jogo.js");
+const fecharMercadoCommand = require("./commands/fechar-mercado.js");
+const resultadoJogoCommand = require("./commands/resultado-jogo.js");
 const rankingCommand = require("./commands/ranking.js");
 const rankingRodadaCommand = require("./commands/ranking-rodada.js");
 const resetarRodadaCommand = require("./commands/resetar-rodada.js");
@@ -92,7 +93,8 @@ client.once("clientReady", async () => {
                     apostaCommand.data.toJSON(),
                     apostarCommand.data.toJSON(),
                     criarApostaCommand.data.toJSON(),
-                    finalizarJogoCommand.data.toJSON(),
+                    fecharMercadoCommand.data.toJSON(),
+                    resultadoJogoCommand.data.toJSON(),
                     rankingCommand.data.toJSON(),
                     rankingRodadaCommand.data.toJSON(),
                     resetarRodadaCommand.data.toJSON()
@@ -128,8 +130,12 @@ client.on("interactionCreate", async (interaction) => {
             return criarApostaCommand.execute(interaction, jogos, saveAll);
         }
 
-        if (interaction.commandName === finalizarJogoCommand.data.name) {
-            return finalizarJogoCommand.execute(
+        if (interaction.commandName === fecharMercadoCommand.data.name) {
+            return fecharMercadoCommand.execute(interaction, jogos, saveAll);
+        }
+
+        if (interaction.commandName === resultadoJogoCommand.data.name) {
+            return resultadoJogoCommand.execute(
                 interaction,
                 jogos,
                 multiplas,
