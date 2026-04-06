@@ -8,10 +8,10 @@ const {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("criar-aposta")
-        .setDescription("Cria uma aposta com botões e odds")
+        .setDescription("Cria uma aposta com botões")
         .addStringOption(option =>
             option.setName("jogo")
-                .setDescription("ID do jogo. Ex: remo_vasco")
+                .setDescription("Identificador do jogo. Ex: remo_vasco")
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("time1")
@@ -43,7 +43,6 @@ module.exports = {
         const odd2 = interaction.options.getNumber("odd2");
 
         jogos[jogo] = {
-            jogo,
             time1,
             odd1,
             oddEmpate,
@@ -54,32 +53,33 @@ module.exports = {
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId(`apostar|${jogo}|time1`)
-                .setLabel(`${time1}`)
+                .setCustomId(`bet|${jogo}|time1`)
+                .setLabel(`${time1} (${odd1.toFixed(2)})`)
                 .setStyle(ButtonStyle.Success),
 
             new ButtonBuilder()
-                .setCustomId(`apostar|${jogo}|empate`)
-                .setLabel("Empate")
+                .setCustomId(`bet|${jogo}|empate`)
+                .setLabel(`Empate (${oddEmpate.toFixed(2)})`)
                 .setStyle(ButtonStyle.Secondary),
 
             new ButtonBuilder()
-                .setCustomId(`apostar|${jogo}|time2`)
-                .setLabel(`${time2}`)
+                .setCustomId(`bet|${jogo}|time2`)
+                .setLabel(`${time2} (${odd2.toFixed(2)})`)
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({
+        return interaction.reply({
             content:
 `⚽ **APOSTA ABERTA**
 
 🎮 **${time1} x ${time2}**
+🆔 Jogo: \`${jogo}\`
 
 🔥 **${time1}** — odd **${odd1.toFixed(2)}**
 🤝 **Empate** — odd **${oddEmpate.toFixed(2)}**
 🔥 **${time2}** — odd **${odd2.toFixed(2)}**
 
-💰 Clique em uma opção para informar o valor da aposta.`,
+💰 Clique em uma opção abaixo para informar o valor da aposta.`,
             components: [row]
         });
     }
