@@ -15,7 +15,7 @@ function montarRankingMoedas(saldos) {
 
     return ranking
         .map(([userId, saldo], index) => {
-            return `${index + 1}. <@${userId}> — **${saldo.toFixed(2)} moedas**`;
+            return `${index + 1}. <@${userId}> — **${Number(saldo).toFixed(2)} moedas**`;
         })
         .join("\n");
 }
@@ -67,7 +67,7 @@ module.exports = {
                     { name: "time2", value: "time2" }
                 )),
 
-    async execute(interaction, jogos, multiplas, saldos, rodadaStats) {
+    async execute(interaction, jogos, multiplas, saldos, rodadaStats, saveData) {
         const jogo = interaction.options.getString("jogo");
         const resultado = interaction.options.getString("resultado");
 
@@ -116,7 +116,7 @@ module.exports = {
             rodadaStats[userId].apostado += multipla.valor;
 
             if (acertouTudo) {
-                if (!saldos[userId]) {
+                if (saldos[userId] == null) {
                     saldos[userId] = 100;
                 }
 
@@ -144,6 +144,8 @@ module.exports = {
             delete multiplas[userId];
             resolvidasAgora += 1;
         }
+
+        saveData();
 
         const resumoResolucao = resolvidasAgora > 0
             ? `🎟️ Múltiplas resolvidas agora: **${resolvidasAgora}**`
