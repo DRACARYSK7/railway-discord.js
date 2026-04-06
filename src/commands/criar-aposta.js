@@ -1,100 +1,87 @@
 const {
-  SlashCommandBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+    SlashCommandBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
 } = require("discord.js");
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("criar-aposta")
-    .setDescription("Cria uma aposta com botões")
-    
-    .addStringOption(option =>
-      option.setName("jogo")
-        .setDescription("Identificador do jogo. Ex: remo_vasco")
-        .setRequired(true)
-    )
+    data: new SlashCommandBuilder()
+        .setName("criar-aposta")
+        .setDescription("Cria uma aposta com botões")
+        .addStringOption(option =>
+            option.setName("jogo")
+                .setDescription("Identificador do jogo. Ex: remo_vasco")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("time1")
+                .setDescription("Nome do primeiro time")
+                .setRequired(true))
+        .addNumberOption(option =>
+            option.setName("odd1")
+                .setDescription("Odd do time1. Ex: 270 para 2.70")
+                .setRequired(true))
+        .addNumberOption(option =>
+            option.setName("oddempate")
+                .setDescription("Odd do empate. Ex: 325 para 3.25")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("time2")
+                .setDescription("Nome do segundo time")
+                .setRequired(true))
+        .addNumberOption(option =>
+            option.setName("odd2")
+                .setDescription("Odd do time2. Ex: 240 para 2.40")
+                .setRequired(true)),
 
-    .addStringOption(option =>
-      option.setName("time1")
-        .setDescription("Nome do primeiro time")
-        .setRequired(true)
-    )
+    async execute(interaction, jogos) {
+        const jogo = interaction.options.getString("jogo");
+        const time1 = interaction.options.getString("time1");
+        const time2 = interaction.options.getString("time2");
 
-    .addNumberOption(option =>
-      option.setName("odd1")
-        .setDescription("Odd do time1. Ex: 270 para 2.70")
-        .setRequired(true)
-    )
+        const odd1 = interaction.options.getNumber("odd1") / 100;
+        const oddEmpate = interaction.options.getNumber("oddempate") / 100;
+        const odd2 = interaction.options.getNumber("odd2") / 100;
 
-    .addNumberOption(option =>
-      option.setName("oddempate")
-        .setDescription("Odd do empate. Ex: 325 para 3.25")
-        .setRequired(true)
-    )
+        jogos[jogo] = {
+            time1,
+            time2,
+            odd1,
+            oddEmpate,
+            odd2,
+            aberto: true
+        };
 
-    .addStringOption(option =>
-      option.setName("time2")
-        .setDescription("Nome do segundo time")
-        .setRequired(true)
-    )
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`bet|${jogo}|time1`)
+                .setLabel(`${time1.toUpperCase()} (${odd1.toFixed(2)})`)
+                .setStyle(ButtonStyle.Success),
 
-    .addNumberOption(option =>
-      option.setName("odd2")
-        .setDescription("Odd do time2. Ex: 240 para 2.40")
-        .setRequired(true)
-    ),
+            new ButtonBuilder()
+                .setCustomId(`bet|${jogo}|empate`)
+                .setLabel(`Empate (${oddEmpate.toFixed(2)})`)
+                .setStyle(ButtonStyle.Secondary),
 
-  async execute(interaction, jogos) {
-    const jogo = interaction.options.getString("jogo");
-    const time1 = interaction.options.getString("time1");
-    const time2 = interaction.options.getString("time2");
+            new ButtonBuilder()
+                .setCustomId(`bet|${jogo}|time2`)
+                .setLabel(`${time2.toUpperCase()} (${odd2.toFixed(2)})`)
+                .setStyle(ButtonStyle.Danger)
+        );
 
-    // 🔥 CONVERSÃO AQUI (270 → 2.70)
-    const odd1 = interaction.options.getNumber("odd1") / 100;
-    const oddEmpate = interaction.options.getNumber("oddempate") / 100;
-    const odd2 = interaction.options.getNumber("odd2") / 100;
-
-    // salva o jogo
-    jogos[jogo] = {
-      time1,
-      time2,
-      odd1,
-      oddEmpate,
-      odd2
-    };
-
-    // botões
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`apostar_${jogo}_time1`)
-        .setLabel(`${time1.toUpperCase()} (${odd1.toFixed(2)})`)
-        .setStyle(ButtonStyle.Success),
-
-      new ButtonBuilder()
-        .setCustomId(`apostar_${jogo}_empate`)
-        .setLabel(`Empate (${oddEmpate.toFixed(2)})`)
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId(`apostar_${jogo}_time2`)
-        .setLabel(`${time2.toUpperCase()} (${odd2.toFixed(2)})`)
-        .setStyle(ButtonStyle.Danger)
-    );
-
-    await interaction.reply({
-      content:
+        await interaction.reply({
+            content:
 `⚽ **APOSTA ABERTA**
 
-🎮 ${time1.toUpperCase()} x ${time2.toUpperCase()}
+🎮 **${time1.toUpperCase()} x ${time2.toUpperCase()}**
+🆔 Jogo: \`${jogo}\`
 
-🔥 ${time1.toUpperCase()} — odd ${odd1.toFixed(2)}
-🤝 Empate — odd ${oddEmpate.toFixed(2)}
-🔥 ${time2.toUpperCase()} — odd ${odd2.toFixed(2)}
+🔥 **${time1.toUpperCase()}** — odd **${odd1.toFixed(2)}**
+🤝 **Empate** — odd **${oddEmpate.toFixed(2)}**
+🔥 **${time2.toUpperCase()}** — odd **${odd2.toFixed(2)}**
 
 💰 Clique em uma opção abaixo para apostar.`,
-      components: [row]
-    });
-  }
+            components: [row]
+        });
+    }
 };
