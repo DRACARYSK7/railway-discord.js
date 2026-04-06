@@ -9,7 +9,7 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-// memória simples (temporária)
+// apostas salvas por jogo
 const apostas = {};
 
 client.once("clientReady", async () => {
@@ -41,7 +41,6 @@ client.on("interactionCreate", async (interaction) => {
 
     // comandos
     if (interaction.isChatInputCommand()) {
-
         if (interaction.commandName === pingCommand.data.name) {
             return pingCommand.execute(interaction);
         }
@@ -53,27 +52,33 @@ client.on("interactionCreate", async (interaction) => {
 
     // botões
     if (interaction.isButton()) {
-
         const userId = interaction.user.id;
         const escolha = interaction.customId;
 
-        // impedir votar duas vezes
-        if (apostas[userId]) {
+        // usa o ID da mensagem como identificador único do jogo
+        const jogoId = interaction.message.id;
+
+        // cria espaço do jogo se não existir
+        if (!apostas[jogoId]) {
+            apostas[jogoId] = {};
+        }
+
+        // impedir aposta duplicada no mesmo jogo
+        if (apostas[jogoId][userId]) {
             return interaction.reply({
-                content: "❌ Você já fez sua aposta!",
+                content: "❌ Você já fez sua aposta nesse jogo!",
                 ephemeral: true
             });
         }
 
-        // salvar aposta
-        apostas[userId] = escolha;
+        // salvar aposta do usuário nesse jogo
+        apostas[jogoId][userId] = escolha;
 
         return interaction.reply({
             content: `✅ Você apostou em: **${interaction.component.label}**`,
             ephemeral: true
         });
     }
-
 });
 
 if (!process.env.TOKEN) {
