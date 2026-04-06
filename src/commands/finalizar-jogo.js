@@ -1,12 +1,12 @@
 const { SlashCommandBuilder } = require("discord.js");
 
 function formatarLucro(valor) {
-    return `${valor >= 0 ? "+" : ""}${valor.toFixed(2)}`;
+    return `${valor >= 0 ? "+" : ""}${Number(valor).toFixed(2)}`;
 }
 
 function montarRankingMoedas(saldos) {
     const ranking = Object.entries(saldos)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
         .slice(0, 10);
 
     if (ranking.length === 0) {
@@ -23,18 +23,18 @@ function montarRankingMoedas(saldos) {
 function montarRankingRodada(rodadaStats) {
     const ranking = Object.entries(rodadaStats)
         .filter(([, dados]) => {
-            return dados.apostado > 0 || dados.retorno > 0 || dados.lucro !== 0;
+            return Number(dados.apostado) > 0 || Number(dados.retorno) > 0 || Number(dados.lucro) !== 0;
         })
         .sort((a, b) => {
-            if (b[1].lucro !== a[1].lucro) {
-                return b[1].lucro - a[1].lucro;
+            if (Number(b[1].lucro) !== Number(a[1].lucro)) {
+                return Number(b[1].lucro) - Number(a[1].lucro);
             }
 
-            if (b[1].retorno !== a[1].retorno) {
-                return b[1].retorno - a[1].retorno;
+            if (Number(b[1].retorno) !== Number(a[1].retorno)) {
+                return Number(b[1].retorno) - Number(a[1].retorno);
             }
 
-            return a[1].apostado - b[1].apostado;
+            return Number(a[1].apostado) - Number(b[1].apostado);
         })
         .slice(0, 10);
 
@@ -44,7 +44,7 @@ function montarRankingRodada(rodadaStats) {
 
     return ranking
         .map(([userId, dados], index) => {
-            return `${index + 1}. <@${userId}> — **${formatarLucro(dados.lucro)} moedas** | Apostado: ${dados.apostado.toFixed(2)} | Retorno: ${dados.retorno.toFixed(2)}`;
+            return `${index + 1}. <@${userId}> — **${formatarLucro(Number(dados.lucro))} moedas** | Apostado: ${Number(dados.apostado).toFixed(2)} | Retorno: ${Number(dados.retorno).toFixed(2)}`;
         })
         .join("\n");
 }
@@ -113,30 +113,33 @@ module.exports = {
                 };
             }
 
-            rodadaStats[userId].apostado += multipla.valor;
+            const valorApostado = Number(multipla.valor);
+            const retornoPossivel = Number(multipla.retornoPossivel);
+
+            rodadaStats[userId].apostado += valorApostado;
 
             if (acertouTudo) {
                 if (saldos[userId] == null) {
                     saldos[userId] = 100;
                 }
 
-                saldos[userId] += multipla.retornoPossivel;
+                saldos[userId] = Number(saldos[userId]) + retornoPossivel;
 
-                const lucroLiquido = multipla.retornoPossivel - multipla.valor;
+                const lucroLiquido = retornoPossivel - valorApostado;
 
-                rodadaStats[userId].retorno += multipla.retornoPossivel;
+                rodadaStats[userId].retorno += retornoPossivel;
                 rodadaStats[userId].lucro += lucroLiquido;
                 rodadaStats[userId].vitorias += 1;
 
                 ganhadores.push(
-                    `<@${userId}> recebeu **${multipla.retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
+                    `<@${userId}> recebeu **${retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
                 );
             } else {
-                rodadaStats[userId].lucro -= multipla.valor;
+                rodadaStats[userId].lucro -= valorApostado;
                 rodadaStats[userId].derrotas += 1;
 
                 perdedores.push(
-                    `<@${userId}> ficou com **${formatarLucro(-multipla.valor)} moedas**`
+                    `<@${userId}> ficou com **${formatarLucro(-valorApostado)} moedas**`
                 );
             }
 
