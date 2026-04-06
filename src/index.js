@@ -16,6 +16,7 @@ const {
 const pingCommand = require("./commands/ping.js");
 const saldoCommand = require("./commands/saldo.js");
 const criarApostaCommand = require("./commands/criar-aposta.js");
+const finalizarJogoCommand = require("./commands/finalizar-jogo.js");
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
@@ -72,7 +73,8 @@ client.once("clientReady", async () => {
                 body: [
                     pingCommand.data.toJSON(),
                     saldoCommand.data.toJSON(),
-                    criarApostaCommand.data.toJSON()
+                    criarApostaCommand.data.toJSON(),
+                    finalizarJogoCommand.data.toJSON()
                 ]
             }
         );
@@ -98,13 +100,16 @@ client.on("interactionCreate", async (interaction) => {
         if (interaction.commandName === criarApostaCommand.data.name) {
             return criarApostaCommand.execute(interaction, jogos);
         }
+
+        if (interaction.commandName === finalizarJogoCommand.data.name) {
+            return finalizarJogoCommand.execute(interaction, jogos, multiplas, saldos);
+        }
     }
 
-    // botão de seleção de aposta
+    // botões
     if (interaction.isButton()) {
         const customId = interaction.customId;
 
-        // seleção de jogo
         if (customId.startsWith("bet|")) {
             const [tipo, jogo, escolha] = customId.split("|");
 
@@ -186,7 +191,6 @@ ${lista}
             });
         }
 
-        // ver saldo
         if (customId === "painel_saldo") {
             const userId = interaction.user.id;
 
@@ -200,7 +204,6 @@ ${lista}
             });
         }
 
-        // ver bilhete
         if (customId === "painel_bilhete") {
             const userId = interaction.user.id;
 
@@ -228,7 +231,6 @@ ${lista}
             });
         }
 
-        // limpar bilhete
         if (customId === "painel_limpar") {
             const userId = interaction.user.id;
             carrinhos[userId] = [];
@@ -239,7 +241,6 @@ ${lista}
             });
         }
 
-        // fechar múltipla -> abre popup
         if (customId === "painel_fechar") {
             const userId = interaction.user.id;
 
@@ -315,7 +316,8 @@ ${lista}
                 valor,
                 oddTotal,
                 retornoPossivel,
-                selecoes: [...carrinhos[userId]]
+                selecoes: [...carrinhos[userId]],
+                resolvida: false
             };
 
             const lista = carrinhos[userId]
