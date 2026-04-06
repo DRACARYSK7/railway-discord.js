@@ -39,6 +39,9 @@ const multiplas = database.multiplas || {};
 const rodadaStats = database.rodadaStats || {};
 const apostasValores = database.apostasValores || {};
 
+// Painel único por usuário
+const paineisBilhete = {};
+
 function saveAll() {
     saveDatabase({
         saldos,
@@ -50,28 +53,116 @@ function saveAll() {
     });
 }
 
-function criarBotoesPainel() {
+function criarBotoesPainel(userId) {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId("painel_saldo")
+            .setCustomId(`painel_saldo|${userId}`)
             .setLabel("Ver saldo")
             .setStyle(ButtonStyle.Secondary),
 
         new ButtonBuilder()
-            .setCustomId("painel_bilhete")
+            .setCustomId(`painel_bilhete|${userId}`)
             .setLabel("Ver bilhete")
             .setStyle(ButtonStyle.Primary),
 
         new ButtonBuilder()
-            .setCustomId("painel_fechar")
+            .setCustomId(`painel_fechar|${userId}`)
             .setLabel("Fechar múltipla")
             .setStyle(ButtonStyle.Success),
 
         new ButtonBuilder()
-            .setCustomId("painel_limpar")
+            .setCustomId(`painel_limpar|${userId}`)
             .setLabel("Limpar bilhete")
             .setStyle(ButtonStyle.Danger)
     );
+}
+
+function montarConteudoBilhete(userId, extra = "") {
+    const itens = Array.isArray(carrinhos[userId]) ? carrinhos[userId] : [];
+    const saldo = Number(saldos[userId] ?? 100);
+
+    if (itens.length === 0) {
+        return [
+            `🧾 **Bilhete de <@${userId}>**`,
+            "",
+            "❌ Seu bilhete está vazio.",
+            "",
+            `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
+            extra ? `\n${extra}` : ""
+        ].join("\n");
+    }
+
+    const lista = itens
+        .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
+        .join("\n");
+
+    const oddParcial = itens.reduce((acc, item) => acc * Number(item.odd), 1);
+
+    return [
+        `🧾 **Bilhete de <@${userId}>**`,
+        "",
+        lista,
+        "",
+        `📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
+        `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
+        extra ? `\n${extra}` : ""
+    ].join("\n");
+}
+
+async function buscarMensagemPainel(userId) {
+    const painel = paineisBilhete[userId];
+    if (!painel) return null;
+
+    try {
+        const channel = await client.channels.fetch(painel.channelId);
+        if (!channel || !channel.isTextBased()) return null;
+
+        const message = await channel.messages.fetch(painel.messageId);
+        return message;
+    } catch {
+        return null;
+    }
+}
+
+async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "") {
+    const conteudo = montarConteudoBilhete(userId, extra);
+    const components = [criarBotoesPainel(userId)];
+
+    const mensagemExistente = await buscarMensagemPainel(userId);
+
+    if (mensagemExistente) {
+        await mensagemExistente.edit({
+            content: conteudo,
+            components,
+            allowedMentions: { parse: [] }
+        });
+        return mensagemExistente;
+    }
+
+    const novaMensagem = await interaction.channel.send({
+        content: conteudo,
+        components,
+        allowedMentions: { parse: [] }
+    });
+
+    paineisBilhete[userId] = {
+        channelId: novaMensagem.channelId,
+        messageId: novaMensagem.id
+    };
+
+    return novaMensagem;
+}
+
+async function removerPainelBilhete(userId) {
+    const mensagem = await buscarMensagemPainel(userId);
+
+    if (mensagem) {
+        try {
+            await mensagem.delete();
+        } catch {}
+    }
+
+    delete paineisBilhete[userId];
 }
 
 client.once("clientReady", async () => {
@@ -226,107 +317,86 @@ client.on("interactionCreate", async (interaction) => {
 
             saveAll();
 
-            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * Number(item.odd), 1);
-
-            const lista = carrinhos[userId]
-                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
-                .join("\n");
-
-            return interaction.reply({
-                content:
-`✅ **Seleção adicionada ao bilhete!**
-
-${lista}
-
-📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
-                components: [criarBotoesPainel()],
-                ephemeral: true
-            });
+            await interaction.deferUpdate();
+            await atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.");
+            return;
         }
 
-        if (customId === "painel_saldo") {
+        if (customId.startsWith("painel_")) {
+            const [acao, ownerId] = customId.split("|");
             const userId = interaction.user.id;
+
+            if (userId !== ownerId) {
+                return interaction.reply({
+                    content: "❌ Esse painel não é seu.",
+                    ephemeral: true
+                });
+            }
 
             if (saldos[userId] == null) {
                 saldos[userId] = 100;
                 saveAll();
             }
 
-            return interaction.reply({
-                content: `💰 Você tem **${Number(saldos[userId]).toFixed(2)} moedas**.`,
-                ephemeral: true
-            });
-        }
-
-        if (customId === "painel_bilhete") {
-            const userId = interaction.user.id;
-
-            if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
-                return interaction.reply({
-                    content: "❌ Seu bilhete está vazio.",
-                    ephemeral: true
-                });
+            if (acao === "painel_saldo") {
+                await interaction.deferUpdate();
+                await atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.");
+                return;
             }
 
-            const lista = carrinhos[userId]
-                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
-                .join("\n");
-
-            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * Number(item.odd), 1);
-
-            return interaction.reply({
-                content:
-`🧾 **Seu bilhete atual**
-
-${lista}
-
-📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
-                ephemeral: true
-            });
-        }
-
-        if (customId === "painel_limpar") {
-            const userId = interaction.user.id;
-            carrinhos[userId] = [];
-            saveAll();
-
-            return interaction.reply({
-                content: "🗑️ Seu bilhete foi limpo.",
-                ephemeral: true
-            });
-        }
-
-        if (customId === "painel_fechar") {
-            const userId = interaction.user.id;
-
-            if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
-                return interaction.reply({
-                    content: "❌ Seu bilhete está vazio.",
-                    ephemeral: true
-                });
+            if (acao === "painel_bilhete") {
+                await interaction.deferUpdate();
+                await atualizarOuCriarPainelBilhete(interaction, userId);
+                return;
             }
 
-            const modal = new ModalBuilder()
-                .setCustomId("modal_fechar_multipla")
-                .setTitle("Fechar múltipla");
+            if (acao === "painel_limpar") {
+                carrinhos[userId] = [];
+                saveAll();
 
-            const valorInput = new TextInputBuilder()
-                .setCustomId("valor")
-                .setLabel("Digite o valor da aposta")
-                .setStyle(TextInputStyle.Short)
-                .setPlaceholder("Ex: 10")
-                .setRequired(true);
+                await interaction.deferUpdate();
+                await atualizarOuCriarPainelBilhete(interaction, userId, "🗑️ Bilhete limpo.");
+                return;
+            }
 
-            const row = new ActionRowBuilder().addComponents(valorInput);
-            modal.addComponents(row);
+            if (acao === "painel_fechar") {
+                if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
+                    return interaction.reply({
+                        content: "❌ Seu bilhete está vazio.",
+                        ephemeral: true
+                    });
+                }
 
-            return interaction.showModal(modal);
+                const modal = new ModalBuilder()
+                    .setCustomId(`modal_fechar_multipla|${userId}`)
+                    .setTitle("Fechar múltipla");
+
+                const valorInput = new TextInputBuilder()
+                    .setCustomId("valor")
+                    .setLabel("Digite o valor da aposta")
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder("Ex: 10")
+                    .setRequired(true);
+
+                const row = new ActionRowBuilder().addComponents(valorInput);
+                modal.addComponents(row);
+
+                return interaction.showModal(modal);
+            }
         }
     }
 
     if (interaction.isModalSubmit()) {
-        if (interaction.customId === "modal_fechar_multipla") {
+        if (interaction.customId.startsWith("modal_fechar_multipla|")) {
+            const [, ownerId] = interaction.customId.split("|");
             const userId = interaction.user.id;
+
+            if (userId !== ownerId) {
+                return interaction.reply({
+                    content: "❌ Esse bilhete não é seu.",
+                    ephemeral: true
+                });
+            }
 
             if (saldos[userId] == null) {
                 saldos[userId] = 100;
@@ -386,6 +456,7 @@ ${lista}
             carrinhos[userId] = [];
 
             saveAll();
+            await removerPainelBilhete(userId);
 
             return interaction.reply({
                 content:
