@@ -1,43 +1,71 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+require("dotenv").config();
 
-module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('aposta')
-    .setDescription('Cria uma aposta')
-    .addStringOption(option =>
-      option.setName('time1')
-        .setDescription('Primeiro time')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('time2')
-        .setDescription('Segundo time')
-        .setRequired(true)),
+const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 
-  async execute(interaction) {
-    const time1 = interaction.options.getString('time1');
-    const time2 = interaction.options.getString('time2');
+const pingCommand = require("./commands/ping.js");
+const apostaCommand = require("./commands/aposta.js");
 
-    const row = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId('time1')
-          .setLabel(`🔥 ${time1}`)
-          .setStyle(ButtonStyle.Success),
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-        new ButtonBuilder()
-          .setCustomId('empate')
-          .setLabel('🤝 Empate')
-          .setStyle(ButtonStyle.Secondary),
+client.once("clientReady", async () => {
+    console.log(`Logged in as ${client.user.tag}`);
 
-        new ButtonBuilder()
-          .setCustomId('time2')
-          .setLabel(`🔥 ${time2}`)
-          .setStyle(ButtonStyle.Danger),
-      );
+    const clientId = client.user.id;
+    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-    await interaction.reply({
-      content: `⚽ **APOSTA ABERTA!**\n\n${time1} x ${time2}\n\nEscolha abaixo:`,
-      components: [row],
-    });
-  },
-};
+    try {
+        console.log("Registering slash commands...");
+
+        await rest.put(
+            Routes.applicationCommands(clientId),
+            {
+                body: [
+                    pingCommand.data.toJSON(),
+                    apostaCommand.data.toJSON()
+                ]
+            }
+        );
+
+        console.log("Slash commands registered.");
+    } catch (error) {
+        console.error(error);
+    }
+});
+
+client.on("interactionCreate", async (interaction) => {
+
+    // COMANDOS (/)
+    if (interaction.isChatInputCommand()) {
+
+        if (interaction.commandName === pingCommand.data.name) {
+            return pingCommand.execute(interaction);
+        }
+
+        if (interaction.commandName === apostaCommand.data.name) {
+            return apostaCommand.execute(interaction);
+        }
+    }
+
+    // BOTÕES
+    if (interaction.isButton()) {
+
+        const escolha = interaction.customId;
+
+        if (escolha === "time1" || escolha === "empate" || escolha === "time2") {
+
+            return interaction.reply({
+                content: `✅ Você apostou em: **${interaction.component.label}**`,
+                ephemeral: true
+            });
+
+        }
+    }
+
+});
+
+if (!process.env.TOKEN) {
+    console.error("Erro: TOKEN não definido.");
+    process.exit(1);
+}
+
+client.login(process.env.TOKEN);
