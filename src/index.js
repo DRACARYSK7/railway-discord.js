@@ -5,10 +5,12 @@ const {
     GatewayIntentBits,
     REST,
     Routes,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     ModalBuilder,
     TextInputBuilder,
-    TextInputStyle,
-    ActionRowBuilder
+    TextInputStyle
 } = require("discord.js");
 
 const pingCommand = require("./commands/ping.js");
@@ -19,9 +21,41 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
+// saldo dos usuários
 const saldos = {};
+
+// jogos criados
 const jogos = {};
-const apostasValores = {};
+
+// carrinho temporário da múltipla
+const carrinhos = {};
+
+// múltiplas fechadas
+const multiplas = {};
+
+function criarBotoesPainel() {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("painel_saldo")
+            .setLabel("Ver saldo")
+            .setStyle(ButtonStyle.Secondary),
+
+        new ButtonBuilder()
+            .setCustomId("painel_bilhete")
+            .setLabel("Ver bilhete")
+            .setStyle(ButtonStyle.Primary),
+
+        new ButtonBuilder()
+            .setCustomId("painel_fechar")
+            .setLabel("Fechar múltipla")
+            .setStyle(ButtonStyle.Success),
+
+        new ButtonBuilder()
+            .setCustomId("painel_limpar")
+            .setLabel("Limpar bilhete")
+            .setStyle(ButtonStyle.Danger)
+    );
+}
 
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -50,6 +84,8 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
+
+    // comandos
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === pingCommand.data.name) {
             return pingCommand.execute(interaction);
@@ -64,152 +100,243 @@ client.on("interactionCreate", async (interaction) => {
         }
     }
 
+    // botão de seleção de aposta
     if (interaction.isButton()) {
-        const [tipo, jogo, escolha] = interaction.customId.split("|");
+        const customId = interaction.customId;
 
-        if (tipo !== "bet") return;
+        // seleção de jogo
+        if (customId.startsWith("bet|")) {
+            const [tipo, jogo, escolha] = customId.split("|");
 
-        if (!jogos[jogo]) {
+            if (tipo !== "bet") return;
+
+            if (!jogos[jogo]) {
+                return interaction.reply({
+                    content: "❌ Esse jogo não existe mais.",
+                    ephemeral: true
+                });
+            }
+
+            if (!jogos[jogo].aberto) {
+                return interaction.reply({
+                    content: "❌ As apostas para esse jogo estão fechadas.",
+                    ephemeral: true
+                });
+            }
+
+            const userId = interaction.user.id;
+
+            if (!saldos[userId]) {
+                saldos[userId] = 100;
+            }
+
+            if (!carrinhos[userId]) {
+                carrinhos[userId] = [];
+            }
+
+            const jaExisteNoBilhete = carrinhos[userId].some(item => item.jogo === jogo);
+
+            if (jaExisteNoBilhete) {
+                return interaction.reply({
+                    content: "❌ Você já adicionou uma opção desse jogo no seu bilhete.",
+                    ephemeral: true
+                });
+            }
+
+            let odd = 1;
+            let nomeEscolha = "";
+
+            if (escolha === "time1") {
+                odd = jogos[jogo].odd1;
+                nomeEscolha = jogos[jogo].time1;
+            }
+
+            if (escolha === "empate") {
+                odd = jogos[jogo].oddEmpate;
+                nomeEscolha = "Empate";
+            }
+
+            if (escolha === "time2") {
+                odd = jogos[jogo].odd2;
+                nomeEscolha = jogos[jogo].time2;
+            }
+
+            carrinhos[userId].push({
+                jogo,
+                escolha,
+                odd,
+                nomeEscolha
+            });
+
+            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * item.odd, 1);
+
+            const lista = carrinhos[userId]
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${item.odd.toFixed(2)})`)
+                .join("\n");
+
             return interaction.reply({
-                content: "❌ Esse jogo não existe mais.",
+                content:
+`✅ **Seleção adicionada ao bilhete!**
+
+${lista}
+
+📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
+                components: [criarBotoesPainel()],
                 ephemeral: true
             });
         }
 
-        if (!jogos[jogo].aberto) {
+        // ver saldo
+        if (customId === "painel_saldo") {
+            const userId = interaction.user.id;
+
+            if (!saldos[userId]) {
+                saldos[userId] = 100;
+            }
+
             return interaction.reply({
-                content: "❌ As apostas para esse jogo estão fechadas.",
+                content: `💰 Você tem **${saldos[userId]} moedas**.`,
                 ephemeral: true
             });
         }
 
-        const userId = interaction.user.id;
+        // ver bilhete
+        if (customId === "painel_bilhete") {
+            const userId = interaction.user.id;
 
-        if (!saldos[userId]) {
-            saldos[userId] = 100;
-        }
+            if (!carrinhos[userId] || carrinhos[userId].length === 0) {
+                return interaction.reply({
+                    content: "❌ Seu bilhete está vazio.",
+                    ephemeral: true
+                });
+            }
 
-        if (!apostasValores[jogo]) {
-            apostasValores[jogo] = {};
-        }
+            const lista = carrinhos[userId]
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${item.odd.toFixed(2)})`)
+                .join("\n");
 
-        if (apostasValores[jogo][userId]) {
+            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * item.odd, 1);
+
             return interaction.reply({
-                content: "❌ Você já fez uma aposta nesse jogo!",
+                content:
+`🧾 **Seu bilhete atual**
+
+${lista}
+
+📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
                 ephemeral: true
             });
         }
 
-        const modal = new ModalBuilder()
-            .setCustomId(`betmodal|${jogo}|${escolha}`)
-            .setTitle("Valor da aposta");
+        // limpar bilhete
+        if (customId === "painel_limpar") {
+            const userId = interaction.user.id;
+            carrinhos[userId] = [];
 
-        const valorInput = new TextInputBuilder()
-            .setCustomId("valor")
-            .setLabel("Digite o valor da sua aposta")
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder("Ex: 20")
-            .setRequired(true);
+            return interaction.reply({
+                content: "🗑️ Seu bilhete foi limpo.",
+                ephemeral: true
+            });
+        }
 
-        const row = new ActionRowBuilder().addComponents(valorInput);
-        modal.addComponents(row);
+        // fechar múltipla -> abre popup
+        if (customId === "painel_fechar") {
+            const userId = interaction.user.id;
 
-        return interaction.showModal(modal);
+            if (!carrinhos[userId] || carrinhos[userId].length === 0) {
+                return interaction.reply({
+                    content: "❌ Seu bilhete está vazio.",
+                    ephemeral: true
+                });
+            }
+
+            const modal = new ModalBuilder()
+                .setCustomId("modal_fechar_multipla")
+                .setTitle("Fechar múltipla");
+
+            const valorInput = new TextInputBuilder()
+                .setCustomId("valor")
+                .setLabel("Digite o valor da aposta")
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder("Ex: 10")
+                .setRequired(true);
+
+            const row = new ActionRowBuilder().addComponents(valorInput);
+            modal.addComponents(row);
+
+            return interaction.showModal(modal);
+        }
     }
 
+    // modal de fechar múltipla
     if (interaction.isModalSubmit()) {
-        const [tipo, jogo, escolha] = interaction.customId.split("|");
+        if (interaction.customId === "modal_fechar_multipla") {
+            const userId = interaction.user.id;
 
-        if (tipo !== "betmodal") return;
+            if (!saldos[userId]) {
+                saldos[userId] = 100;
+            }
 
-        if (!jogos[jogo]) {
+            if (!carrinhos[userId] || carrinhos[userId].length === 0) {
+                return interaction.reply({
+                    content: "❌ Seu bilhete está vazio.",
+                    ephemeral: true
+                });
+            }
+
+            const valorTexto = interaction.fields.getTextInputValue("valor");
+            const valor = parseInt(valorTexto, 10);
+
+            if (isNaN(valor) || valor <= 0) {
+                return interaction.reply({
+                    content: "❌ Digite um valor válido maior que 0.",
+                    ephemeral: true
+                });
+            }
+
+            if (saldos[userId] < valor) {
+                return interaction.reply({
+                    content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${saldos[userId]} moedas**.`,
+                    ephemeral: true
+                });
+            }
+
+            let oddTotal = 1;
+
+            for (const selecao of carrinhos[userId]) {
+                oddTotal *= selecao.odd;
+            }
+
+            const retornoPossivel = valor * oddTotal;
+
+            saldos[userId] -= valor;
+
+            multiplas[userId] = {
+                valor,
+                oddTotal,
+                retornoPossivel,
+                selecoes: [...carrinhos[userId]]
+            };
+
+            const lista = carrinhos[userId]
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${item.odd.toFixed(2)})`)
+                .join("\n");
+
+            carrinhos[userId] = [];
+
             return interaction.reply({
-                content: "❌ Esse jogo não existe mais.",
-                ephemeral: true
-            });
-        }
+                content:
+`✅ **Múltipla registrada!**
 
-        if (!jogos[jogo].aberto) {
-            return interaction.reply({
-                content: "❌ As apostas para esse jogo estão fechadas.",
-                ephemeral: true
-            });
-        }
+${lista}
 
-        const userId = interaction.user.id;
-
-        if (!saldos[userId]) {
-            saldos[userId] = 100;
-        }
-
-        if (!apostasValores[jogo]) {
-            apostasValores[jogo] = {};
-        }
-
-        if (apostasValores[jogo][userId]) {
-            return interaction.reply({
-                content: "❌ Você já fez uma aposta nesse jogo!",
-                ephemeral: true
-            });
-        }
-
-        const valorTexto = interaction.fields.getTextInputValue("valor");
-        const valor = parseInt(valorTexto, 10);
-
-        if (isNaN(valor) || valor <= 0) {
-            return interaction.reply({
-                content: "❌ Digite um valor válido maior que 0.",
-                ephemeral: true
-            });
-        }
-
-        if (saldos[userId] < valor) {
-            return interaction.reply({
-                content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${saldos[userId]} moedas**.`,
-                ephemeral: true
-            });
-        }
-
-        let odd = 1;
-        let nomeEscolha = "";
-
-        if (escolha === "time1") {
-            odd = jogos[jogo].odd1;
-            nomeEscolha = jogos[jogo].time1;
-        }
-
-        if (escolha === "empate") {
-            odd = jogos[jogo].oddEmpate;
-            nomeEscolha = "Empate";
-        }
-
-        if (escolha === "time2") {
-            odd = jogos[jogo].odd2;
-            nomeEscolha = jogos[jogo].time2;
-        }
-
-        const retornoPossivel = valor * odd;
-
-        saldos[userId] -= valor;
-
-        apostasValores[jogo][userId] = {
-            escolha,
-            valor,
-            odd
-        };
-
-        return interaction.reply({
-            content:
-`✅ **Aposta registrada!**
-
-🎮 Jogo: **${jogo}**
-🎯 Escolha: **${nomeEscolha}**
 💰 Valor apostado: **${valor} moedas**
-📈 Odd travada: **${odd.toFixed(2)}**
+📈 Odd total: **${oddTotal.toFixed(2)}**
 💸 Retorno possível: **${retornoPossivel.toFixed(2)} moedas**
 💳 Saldo restante: **${saldos[userId]} moedas**`,
-            ephemeral: true
-        });
+                ephemeral: true
+            });
+        }
     }
 });
 
