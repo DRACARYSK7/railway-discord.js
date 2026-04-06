@@ -13,6 +13,8 @@ const {
     TextInputStyle
 } = require("discord.js");
 
+const { loadDatabase, saveDatabase, DB_PATH } = require("./storage");
+
 const pingCommand = require("./commands/ping.js");
 const saldoCommand = require("./commands/saldo.js");
 const criarApostaCommand = require("./commands/criar-aposta.js");
@@ -25,20 +27,23 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-// saldo dos usuários
-const saldos = {};
+const database = loadDatabase();
 
-// jogos criados
-const jogos = {};
+const saldos = database.saldos;
+const jogos = database.jogos;
+const carrinhos = database.carrinhos;
+const multiplas = database.multiplas;
+const rodadaStats = database.rodadaStats;
 
-// carrinho temporário da múltipla
-const carrinhos = {};
-
-// múltiplas fechadas
-const multiplas = {};
-
-// estatísticas da rodada
-const rodadaStats = {};
+function saveAll() {
+    saveDatabase({
+        saldos,
+        jogos,
+        carrinhos,
+        multiplas,
+        rodadaStats
+    });
+}
 
 function criarBotoesPainel() {
     return new ActionRowBuilder().addComponents(
@@ -66,6 +71,7 @@ function criarBotoesPainel() {
 
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
+    console.log(`Database carregado de: ${DB_PATH}`);
 
     const clientId = client.user.id;
     const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
@@ -96,22 +102,28 @@ client.once("clientReady", async () => {
 
 client.on("interactionCreate", async (interaction) => {
 
-    // comandos
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === pingCommand.data.name) {
             return pingCommand.execute(interaction);
         }
 
         if (interaction.commandName === saldoCommand.data.name) {
-            return saldoCommand.execute(interaction, saldos);
+            return saldoCommand.execute(interaction, saldos, saveAll);
         }
 
         if (interaction.commandName === criarApostaCommand.data.name) {
-            return criarApostaCommand.execute(interaction, jogos);
+            return criarApostaCommand.execute(interaction, jogos, saveAll);
         }
 
         if (interaction.commandName === finalizarJogoCommand.data.name) {
-            return finalizarJogoCommand.execute(interaction, jogos, multiplas, saldos, rodadaStats);
+            return finalizarJogoCommand.execute(
+                interaction,
+                jogos,
+                multiplas,
+                saldos,
+                rodadaStats,
+                saveAll
+            );
         }
 
         if (interaction.commandName === rankingCommand.data.name) {
@@ -123,11 +135,10 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         if (interaction.commandName === resetarRodadaCommand.data.name) {
-            return resetarRodadaCommand.execute(interaction, rodadaStats);
+            return resetarRodadaCommand.execute(interaction, rodadaStats, saveAll);
         }
     }
 
-    // botões
     if (interaction.isButton()) {
         const customId = interaction.customId;
 
@@ -152,11 +163,11 @@ client.on("interactionCreate", async (interaction) => {
 
             const userId = interaction.user.id;
 
-            if (!saldos[userId]) {
+            if (saldos[userId] == null) {
                 saldos[userId] = 100;
             }
 
-            if (!carrinhos[userId]) {
+            if (!Array.isArray(carrinhos[userId])) {
                 carrinhos[userId] = [];
             }
 
@@ -194,6 +205,8 @@ client.on("interactionCreate", async (interaction) => {
                 nomeEscolha
             });
 
+            saveAll();
+
             const oddParcial = carrinhos[userId].reduce((acc, item) => acc * item.odd, 1);
 
             const lista = carrinhos[userId]
@@ -215,8 +228,9 @@ ${lista}
         if (customId === "painel_saldo") {
             const userId = interaction.user.id;
 
-            if (!saldos[userId]) {
+            if (saldos[userId] == null) {
                 saldos[userId] = 100;
+                saveAll();
             }
 
             return interaction.reply({
@@ -228,7 +242,7 @@ ${lista}
         if (customId === "painel_bilhete") {
             const userId = interaction.user.id;
 
-            if (!carrinhos[userId] || carrinhos[userId].length === 0) {
+            if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
                 return interaction.reply({
                     content: "❌ Seu bilhete está vazio.",
                     ephemeral: true
@@ -255,6 +269,7 @@ ${lista}
         if (customId === "painel_limpar") {
             const userId = interaction.user.id;
             carrinhos[userId] = [];
+            saveAll();
 
             return interaction.reply({
                 content: "🗑️ Seu bilhete foi limpo.",
@@ -265,7 +280,7 @@ ${lista}
         if (customId === "painel_fechar") {
             const userId = interaction.user.id;
 
-            if (!carrinhos[userId] || carrinhos[userId].length === 0) {
+            if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
                 return interaction.reply({
                     content: "❌ Seu bilhete está vazio.",
                     ephemeral: true
@@ -290,16 +305,15 @@ ${lista}
         }
     }
 
-    // modal de fechar múltipla
     if (interaction.isModalSubmit()) {
         if (interaction.customId === "modal_fechar_multipla") {
             const userId = interaction.user.id;
 
-            if (!saldos[userId]) {
+            if (saldos[userId] == null) {
                 saldos[userId] = 100;
             }
 
-            if (!carrinhos[userId] || carrinhos[userId].length === 0) {
+            if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
                 return interaction.reply({
                     content: "❌ Seu bilhete está vazio.",
                     ephemeral: true
@@ -307,9 +321,9 @@ ${lista}
             }
 
             const valorTexto = interaction.fields.getTextInputValue("valor");
-            const valor = parseInt(valorTexto, 10);
+            const valor = parseFloat(valorTexto.replace(",", "."));
 
-            if (isNaN(valor) || valor <= 0) {
+            if (Number.isNaN(valor) || valor <= 0) {
                 return interaction.reply({
                     content: "❌ Digite um valor válido maior que 0.",
                     ephemeral: true
@@ -346,6 +360,8 @@ ${lista}
                 .join("\n");
 
             carrinhos[userId] = [];
+
+            saveAll();
 
             return interaction.reply({
                 content:
