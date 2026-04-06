@@ -51,8 +51,8 @@ function montarRankingRodada(rodadaStats) {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName("finalizar-jogo")
-        .setDescription("Finaliza um jogo e define o resultado")
+        .setName("resultado-jogo")
+        .setDescription("Define o resultado final de um jogo")
         .addStringOption(option =>
             option.setName("jogo")
                 .setDescription("Identificador do jogo. Ex: remo_vasco")
@@ -78,7 +78,13 @@ module.exports = {
             });
         }
 
-        jogos[jogo].aberto = false;
+        if (jogos[jogo].resultado) {
+            return interaction.reply({
+                content: "❌ Esse jogo já teve um resultado definido.",
+                ephemeral: true
+            });
+        }
+
         jogos[jogo].resultado = resultado;
 
         const ganhadores = [];
@@ -90,7 +96,9 @@ module.exports = {
 
             if (!multipla || multipla.resolvida) continue;
 
-            const contemJogo = multipla.selecoes.some(selecao => selecao.jogo === jogo);
+            const contemJogo = Array.isArray(multipla.selecoes) &&
+                multipla.selecoes.some(selecao => selecao.jogo === jogo);
+
             if (!contemJogo) continue;
 
             const todosFinalizados = multipla.selecoes.every(selecao => {
@@ -156,9 +164,9 @@ module.exports = {
 
         return interaction.reply({
             content:
-`🏁 **JOGO FINALIZADO**
+`🏁 **RESULTADO REGISTRADO**
 
-🎮 Jogo: **${jogo}**
+🎮 Jogo: **${jogos[jogo].time1} x ${jogos[jogo].time2}**
 📌 Resultado: **${resultado}**
 
 ${resumoResolucao}
