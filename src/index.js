@@ -9,6 +9,9 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
+// memória simples (temporária)
+const apostas = {};
+
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
@@ -35,7 +38,10 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
+
+    // comandos
     if (interaction.isChatInputCommand()) {
+
         if (interaction.commandName === pingCommand.data.name) {
             return pingCommand.execute(interaction);
         }
@@ -45,16 +51,29 @@ client.on("interactionCreate", async (interaction) => {
         }
     }
 
+    // botões
     if (interaction.isButton()) {
+
+        const userId = interaction.user.id;
         const escolha = interaction.customId;
 
-        if (escolha === "time1" || escolha === "empate" || escolha === "time2") {
+        // impedir votar duas vezes
+        if (apostas[userId]) {
             return interaction.reply({
-                content: `✅ Você apostou em: **${interaction.component.label}**`,
+                content: "❌ Você já fez sua aposta!",
                 ephemeral: true
             });
         }
+
+        // salvar aposta
+        apostas[userId] = escolha;
+
+        return interaction.reply({
+            content: `✅ Você apostou em: **${interaction.component.label}**`,
+            ephemeral: true
+        });
     }
+
 });
 
 if (!process.env.TOKEN) {
