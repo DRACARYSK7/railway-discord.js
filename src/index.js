@@ -17,6 +17,8 @@ const { loadDatabase, saveDatabase, DB_PATH } = require("./storage");
 
 const pingCommand = require("./commands/ping.js");
 const saldoCommand = require("./commands/saldo.js");
+const apostaCommand = require("./commands/aposta.js");
+const apostarCommand = require("./commands/apostar.js");
 const criarApostaCommand = require("./commands/criar-aposta.js");
 const finalizarJogoCommand = require("./commands/finalizar-jogo.js");
 const rankingCommand = require("./commands/ranking.js");
@@ -29,11 +31,12 @@ const client = new Client({
 
 const database = loadDatabase();
 
-const saldos = database.saldos;
-const jogos = database.jogos;
-const carrinhos = database.carrinhos;
-const multiplas = database.multiplas;
-const rodadaStats = database.rodadaStats;
+const saldos = database.saldos || {};
+const jogos = database.jogos || {};
+const carrinhos = database.carrinhos || {};
+const multiplas = database.multiplas || {};
+const rodadaStats = database.rodadaStats || {};
+const apostasValores = database.apostasValores || {};
 
 function saveAll() {
     saveDatabase({
@@ -41,7 +44,8 @@ function saveAll() {
         jogos,
         carrinhos,
         multiplas,
-        rodadaStats
+        rodadaStats,
+        apostasValores
     });
 }
 
@@ -85,6 +89,8 @@ client.once("clientReady", async () => {
                 body: [
                     pingCommand.data.toJSON(),
                     saldoCommand.data.toJSON(),
+                    apostaCommand.data.toJSON(),
+                    apostarCommand.data.toJSON(),
                     criarApostaCommand.data.toJSON(),
                     finalizarJogoCommand.data.toJSON(),
                     rankingCommand.data.toJSON(),
@@ -101,7 +107,6 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === pingCommand.data.name) {
             return pingCommand.execute(interaction);
@@ -109,6 +114,14 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.commandName === saldoCommand.data.name) {
             return saldoCommand.execute(interaction, saldos, saveAll);
+        }
+
+        if (interaction.commandName === apostaCommand.data.name) {
+            return apostaCommand.execute(interaction);
+        }
+
+        if (interaction.commandName === apostarCommand.data.name) {
+            return apostarCommand.execute(interaction, saldos, jogos, apostasValores, saveAll);
         }
 
         if (interaction.commandName === criarApostaCommand.data.name) {
@@ -184,17 +197,17 @@ client.on("interactionCreate", async (interaction) => {
             let nomeEscolha = "";
 
             if (escolha === "time1") {
-                odd = jogos[jogo].odd1;
+                odd = Number(jogos[jogo].odd1);
                 nomeEscolha = jogos[jogo].time1;
             }
 
             if (escolha === "empate") {
-                odd = jogos[jogo].oddEmpate;
+                odd = Number(jogos[jogo].oddEmpate);
                 nomeEscolha = "Empate";
             }
 
             if (escolha === "time2") {
-                odd = jogos[jogo].odd2;
+                odd = Number(jogos[jogo].odd2);
                 nomeEscolha = jogos[jogo].time2;
             }
 
@@ -207,10 +220,10 @@ client.on("interactionCreate", async (interaction) => {
 
             saveAll();
 
-            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * item.odd, 1);
+            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * Number(item.odd), 1);
 
             const lista = carrinhos[userId]
-                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${item.odd.toFixed(2)})`)
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
                 .join("\n");
 
             return interaction.reply({
@@ -234,7 +247,7 @@ ${lista}
             }
 
             return interaction.reply({
-                content: `💰 Você tem **${saldos[userId].toFixed(2)} moedas**.`,
+                content: `💰 Você tem **${Number(saldos[userId]).toFixed(2)} moedas**.`,
                 ephemeral: true
             });
         }
@@ -250,10 +263,10 @@ ${lista}
             }
 
             const lista = carrinhos[userId]
-                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${item.odd.toFixed(2)})`)
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
                 .join("\n");
 
-            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * item.odd, 1);
+            const oddParcial = carrinhos[userId].reduce((acc, item) => acc * Number(item.odd), 1);
 
             return interaction.reply({
                 content:
@@ -330,9 +343,9 @@ ${lista}
                 });
             }
 
-            if (saldos[userId] < valor) {
+            if (Number(saldos[userId]) < valor) {
                 return interaction.reply({
-                    content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${saldos[userId].toFixed(2)} moedas**.`,
+                    content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${Number(saldos[userId]).toFixed(2)} moedas**.`,
                     ephemeral: true
                 });
             }
@@ -340,23 +353,28 @@ ${lista}
             let oddTotal = 1;
 
             for (const selecao of carrinhos[userId]) {
-                oddTotal *= selecao.odd;
+                oddTotal *= Number(selecao.odd);
             }
 
             const retornoPossivel = valor * oddTotal;
 
-            saldos[userId] -= valor;
+            saldos[userId] = Number(saldos[userId]) - valor;
 
             multiplas[userId] = {
-                valor,
-                oddTotal,
-                retornoPossivel,
-                selecoes: [...carrinhos[userId]],
+                valor: Number(valor),
+                oddTotal: Number(oddTotal),
+                retornoPossivel: Number(retornoPossivel),
+                selecoes: carrinhos[userId].map(item => ({
+                    jogo: item.jogo,
+                    escolha: item.escolha,
+                    odd: Number(item.odd),
+                    nomeEscolha: item.nomeEscolha
+                })),
                 resolvida: false
             };
 
             const lista = carrinhos[userId]
-                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${item.odd.toFixed(2)})`)
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
                 .join("\n");
 
             carrinhos[userId] = [];
@@ -372,7 +390,7 @@ ${lista}
 💰 Valor apostado: **${valor.toFixed(2)} moedas**
 📈 Odd total: **${oddTotal.toFixed(2)}**
 💸 Retorno possível: **${retornoPossivel.toFixed(2)} moedas**
-💳 Saldo restante: **${saldos[userId].toFixed(2)} moedas**`,
+💳 Saldo restante: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
