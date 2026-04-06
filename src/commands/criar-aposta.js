@@ -1,12 +1,17 @@
-const { SlashCommandBuilder } = require("discord.js");
+const {
+    SlashCommandBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
+} = require("discord.js");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("criar-aposta")
-        .setDescription("Cria uma aposta com odds")
+        .setDescription("Cria uma aposta com botões e odds")
         .addStringOption(option =>
             option.setName("jogo")
-                .setDescription("Identificador do jogo. Ex: remo_vasco")
+                .setDescription("ID do jogo. Ex: remo_vasco")
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("time1")
@@ -14,11 +19,11 @@ module.exports = {
                 .setRequired(true))
         .addNumberOption(option =>
             option.setName("odd1")
-                .setDescription("Odd do time1")
+                .setDescription("Odd do time1. Ex: 2.70")
                 .setRequired(true))
         .addNumberOption(option =>
             option.setName("oddempate")
-                .setDescription("Odd do empate")
+                .setDescription("Odd do empate. Ex: 3.25")
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("time2")
@@ -26,7 +31,7 @@ module.exports = {
                 .setRequired(true))
         .addNumberOption(option =>
             option.setName("odd2")
-                .setDescription("Odd do time2")
+                .setDescription("Odd do time2. Ex: 2.40")
                 .setRequired(true)),
 
     async execute(interaction, jogos) {
@@ -38,6 +43,7 @@ module.exports = {
         const odd2 = interaction.options.getNumber("odd2");
 
         jogos[jogo] = {
+            jogo,
             time1,
             odd1,
             oddEmpate,
@@ -46,20 +52,35 @@ module.exports = {
             aberto: true
         };
 
-        return interaction.reply({
-            content:
-`⚽ **APOSTA ABERTA!**
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`apostar|${jogo}|time1`)
+                .setLabel(`${time1}`)
+                .setStyle(ButtonStyle.Success),
 
-🎮 Jogo: **${jogo}**
+            new ButtonBuilder()
+                .setCustomId(`apostar|${jogo}|empate`)
+                .setLabel("Empate")
+                .setStyle(ButtonStyle.Secondary),
+
+            new ButtonBuilder()
+                .setCustomId(`apostar|${jogo}|time2`)
+                .setLabel(`${time2}`)
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.reply({
+            content:
+`⚽ **APOSTA ABERTA**
+
+🎮 **${time1} x ${time2}**
 
 🔥 **${time1}** — odd **${odd1.toFixed(2)}**
 🤝 **Empate** — odd **${oddEmpate.toFixed(2)}**
 🔥 **${time2}** — odd **${odd2.toFixed(2)}**
 
-Use:
-\`/apostar jogo:${jogo} escolha:time1 valor:10\`
-\`/apostar jogo:${jogo} escolha:empate valor:10\`
-\`/apostar jogo:${jogo} escolha:time2 valor:10\``
+💰 Clique em uma opção para informar o valor da aposta.`,
+            components: [row]
         });
     }
 };
