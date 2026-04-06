@@ -5,6 +5,10 @@ const {
     ButtonStyle
 } = require("discord.js");
 
+function formatOdd(valor) {
+    return (Number(valor) / 100).toFixed(2);
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("criar-aposta")
@@ -64,17 +68,17 @@ module.exports = {
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`bet|${jogo}|time1`)
-                .setLabel(`${time1} (${odd1.toFixed(2)})`)
+                .setLabel(`${time1} (${formatOdd(odd1)})`)
                 .setStyle(ButtonStyle.Primary),
 
             new ButtonBuilder()
                 .setCustomId(`bet|${jogo}|empate`)
-                .setLabel(`Empate (${oddEmpate.toFixed(2)})`)
+                .setLabel(`Empate (${formatOdd(oddEmpate)})`)
                 .setStyle(ButtonStyle.Secondary),
 
             new ButtonBuilder()
                 .setCustomId(`bet|${jogo}|time2`)
-                .setLabel(`${time2} (${odd2.toFixed(2)})`)
+                .setLabel(`${time2} (${formatOdd(odd2)})`)
                 .setStyle(ButtonStyle.Danger)
         );
 
