@@ -12,6 +12,7 @@ const client = new Client({
 
 // apostas salvas por jogo
 const apostas = {};
+const saldos = {};
 
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -26,9 +27,10 @@ client.once("clientReady", async () => {
             Routes.applicationCommands(clientId),
             {
                 body: [
-                    pingCommand.data.toJSON(),
-                    apostaCommand.data.toJSON()
-                ]
+    pingCommand.data.toJSON(),
+    apostaCommand.data.toJSON(),
+    saldoCommand.data.toJSON()
+]
             }
         );
 
@@ -49,6 +51,9 @@ client.on("interactionCreate", async (interaction) => {
         if (interaction.commandName === apostaCommand.data.name) {
             return apostaCommand.execute(interaction);
         }
+        if (interaction.commandName === saldoCommand.data.name) {
+    return saldoCommand.execute(interaction, saldos);
+}
     }
 
     // botões
