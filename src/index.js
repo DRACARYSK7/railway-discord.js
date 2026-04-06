@@ -17,6 +17,9 @@ const pingCommand = require("./commands/ping.js");
 const saldoCommand = require("./commands/saldo.js");
 const criarApostaCommand = require("./commands/criar-aposta.js");
 const finalizarJogoCommand = require("./commands/finalizar-jogo.js");
+const rankingCommand = require("./commands/ranking.js");
+const rankingRodadaCommand = require("./commands/ranking-rodada.js");
+const resetarRodadaCommand = require("./commands/resetar-rodada.js");
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
@@ -33,6 +36,9 @@ const carrinhos = {};
 
 // múltiplas fechadas
 const multiplas = {};
+
+// estatísticas da rodada
+const rodadaStats = {};
 
 function criarBotoesPainel() {
     return new ActionRowBuilder().addComponents(
@@ -74,7 +80,10 @@ client.once("clientReady", async () => {
                     pingCommand.data.toJSON(),
                     saldoCommand.data.toJSON(),
                     criarApostaCommand.data.toJSON(),
-                    finalizarJogoCommand.data.toJSON()
+                    finalizarJogoCommand.data.toJSON(),
+                    rankingCommand.data.toJSON(),
+                    rankingRodadaCommand.data.toJSON(),
+                    resetarRodadaCommand.data.toJSON()
                 ]
             }
         );
@@ -102,7 +111,19 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         if (interaction.commandName === finalizarJogoCommand.data.name) {
-            return finalizarJogoCommand.execute(interaction, jogos, multiplas, saldos);
+            return finalizarJogoCommand.execute(interaction, jogos, multiplas, saldos, rodadaStats);
+        }
+
+        if (interaction.commandName === rankingCommand.data.name) {
+            return rankingCommand.execute(interaction, saldos);
+        }
+
+        if (interaction.commandName === rankingRodadaCommand.data.name) {
+            return rankingRodadaCommand.execute(interaction, rodadaStats);
+        }
+
+        if (interaction.commandName === resetarRodadaCommand.data.name) {
+            return resetarRodadaCommand.execute(interaction, rodadaStats);
         }
     }
 
@@ -199,7 +220,7 @@ ${lista}
             }
 
             return interaction.reply({
-                content: `💰 Você tem **${saldos[userId]} moedas**.`,
+                content: `💰 Você tem **${saldos[userId].toFixed(2)} moedas**.`,
                 ephemeral: true
             });
         }
@@ -297,7 +318,7 @@ ${lista}
 
             if (saldos[userId] < valor) {
                 return interaction.reply({
-                    content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${saldos[userId]} moedas**.`,
+                    content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${saldos[userId].toFixed(2)} moedas**.`,
                     ephemeral: true
                 });
             }
@@ -332,10 +353,10 @@ ${lista}
 
 ${lista}
 
-💰 Valor apostado: **${valor} moedas**
+💰 Valor apostado: **${valor.toFixed(2)} moedas**
 📈 Odd total: **${oddTotal.toFixed(2)}**
 💸 Retorno possível: **${retornoPossivel.toFixed(2)} moedas**
-💳 Saldo restante: **${saldos[userId]} moedas**`,
+💳 Saldo restante: **${saldos[userId].toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
