@@ -25,6 +25,7 @@ const resultadoJogoCommand = require("./commands/resultado-jogo.js");
 const rankingCommand = require("./commands/ranking.js");
 const rankingRodadaCommand = require("./commands/ranking-rodada.js");
 const resetarRodadaCommand = require("./commands/resetar-rodada.js");
+const verApostasCommand = require("./commands/ver-apostas.js");
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
@@ -38,6 +39,7 @@ const carrinhos = database.carrinhos || {};
 const multiplas = database.multiplas || {};
 const rodadaStats = database.rodadaStats || {};
 const apostasValores = database.apostasValores || {};
+const historicoApostas = database.historicoApostas || {};
 
 // Painel único por usuário
 const paineisBilhete = {};
@@ -49,8 +51,13 @@ function saveAll() {
         carrinhos,
         multiplas,
         rodadaStats,
-        apostasValores
+        apostasValores,
+        historicoApostas
     });
+}
+
+function gerarIdAposta() {
+    return `multipla_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
 
 function criarBotoesPainel(userId) {
@@ -64,6 +71,11 @@ function criarBotoesPainel(userId) {
             .setCustomId(`painel_bilhete|${userId}`)
             .setLabel("Ver bilhete")
             .setStyle(ButtonStyle.Primary),
+
+        new ButtonBuilder()
+            .setCustomId(`painel_apostas|${userId}`)
+            .setLabel("Minhas apostas")
+            .setStyle(ButtonStyle.Secondary),
 
         new ButtonBuilder()
             .setCustomId(`painel_fechar|${userId}`)
@@ -109,6 +121,43 @@ function montarConteudoBilhete(userId, extra = "") {
     ].join("\n");
 }
 
+function montarConteudoMinhasApostas(userId, extra = "") {
+    const lista = Array.isArray(historicoApostas[userId]) ? [...historicoApostas[userId]] : [];
+    const saldo = Number(saldos[userId] ?? 100);
+
+    if (lista.length === 0) {
+        return [
+            `📄 **Apostas de <@${userId}>**`,
+            "",
+            "❌ Você ainda não fez apostas confirmadas.",
+            "",
+            `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
+            extra ? `\n${extra}` : ""
+        ].join("\n");
+    }
+
+    lista.sort((a, b) => new Date(b.criadaEm || 0) - new Date(a.criadaEm || 0));
+
+    const textoApostas = lista.slice(0, 10).map((aposta, index) => {
+        if (aposta.tipo === "simples") {
+            return `**${index + 1}.** [SIMPLES - ${String(aposta.status || "ativa").toUpperCase()}] \`${aposta.jogo}\` → **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**`;
+        }
+
+        const quantidadeSelecoes = Array.isArray(aposta.selecoes) ? aposta.selecoes.length : 0;
+        return `**${index + 1}.** [MÚLTIPLA - ${String(aposta.status || "ativa").toUpperCase()}] ${quantidadeSelecoes} seleções | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**`;
+    }).join("\n");
+
+    return [
+        `📄 **Apostas de <@${userId}>**`,
+        "",
+        textoApostas,
+        "",
+        `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
+        lista.length > 10 ? `📌 Mostrando as 10 mais recentes de ${lista.length}.` : "",
+        extra ? `\n${extra}` : ""
+    ].join("\n");
+}
+
 async function buscarMensagemPainel(userId) {
     const painel = paineisBilhete[userId];
     if (!painel) return null;
@@ -124,8 +173,11 @@ async function buscarMensagemPainel(userId) {
     }
 }
 
-async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "") {
-    const conteudo = montarConteudoBilhete(userId, extra);
+async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "", modo = "bilhete") {
+    const conteudo = modo === "apostas"
+        ? montarConteudoMinhasApostas(userId, extra)
+        : montarConteudoBilhete(userId, extra);
+
     const components = [criarBotoesPainel(userId)];
 
     const mensagemExistente = await buscarMensagemPainel(userId);
@@ -188,7 +240,8 @@ client.once("clientReady", async () => {
                     resultadoJogoCommand.data.toJSON(),
                     rankingCommand.data.toJSON(),
                     rankingRodadaCommand.data.toJSON(),
-                    resetarRodadaCommand.data.toJSON()
+                    resetarRodadaCommand.data.toJSON(),
+                    verApostasCommand.data.toJSON()
                 ]
             }
         );
@@ -214,7 +267,14 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         if (interaction.commandName === apostarCommand.data.name) {
-            return apostarCommand.execute(interaction, saldos, jogos, apostasValores, saveAll);
+            return apostarCommand.execute(
+                interaction,
+                saldos,
+                jogos,
+                apostasValores,
+                historicoApostas,
+                saveAll
+            );
         }
 
         if (interaction.commandName === criarApostaCommand.data.name) {
@@ -232,6 +292,8 @@ client.on("interactionCreate", async (interaction) => {
                 multiplas,
                 saldos,
                 rodadaStats,
+                apostasValores,
+                historicoApostas,
                 saveAll
             );
         }
@@ -246,6 +308,10 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.commandName === resetarRodadaCommand.data.name) {
             return resetarRodadaCommand.execute(interaction, rodadaStats, saveAll);
+        }
+
+        if (interaction.commandName === verApostasCommand.data.name) {
+            return verApostasCommand.execute(interaction, historicoApostas);
         }
     }
 
@@ -318,7 +384,7 @@ client.on("interactionCreate", async (interaction) => {
             saveAll();
 
             await interaction.deferUpdate();
-            await atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.");
+            await atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.", "bilhete");
             return;
         }
 
@@ -340,13 +406,19 @@ client.on("interactionCreate", async (interaction) => {
 
             if (acao === "painel_saldo") {
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.");
+                await atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.", "bilhete");
                 return;
             }
 
             if (acao === "painel_bilhete") {
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId);
+                await atualizarOuCriarPainelBilhete(interaction, userId, "", "bilhete");
+                return;
+            }
+
+            if (acao === "painel_apostas") {
+                await interaction.deferUpdate();
+                await atualizarOuCriarPainelBilhete(interaction, userId, "📄 Histórico carregado.", "apostas");
                 return;
             }
 
@@ -355,7 +427,7 @@ client.on("interactionCreate", async (interaction) => {
                 saveAll();
 
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "🗑️ Bilhete limpo.");
+                await atualizarOuCriarPainelBilhete(interaction, userId, "🗑️ Bilhete limpo.", "bilhete");
                 return;
             }
 
@@ -433,10 +505,12 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             const retornoPossivel = valor * oddTotal;
+            const idAposta = gerarIdAposta();
 
             saldos[userId] = Number(saldos[userId]) - valor;
 
             multiplas[userId] = {
+                idAposta,
                 valor: Number(valor),
                 oddTotal: Number(oddTotal),
                 retornoPossivel: Number(retornoPossivel),
@@ -448,6 +522,26 @@ client.on("interactionCreate", async (interaction) => {
                 })),
                 resolvida: false
             };
+
+            if (!Array.isArray(historicoApostas[userId])) {
+                historicoApostas[userId] = [];
+            }
+
+            historicoApostas[userId].push({
+                idAposta,
+                tipo: "multipla",
+                valor: Number(valor),
+                oddTotal: Number(oddTotal),
+                retornoPossivel: Number(retornoPossivel),
+                selecoes: carrinhos[userId].map(item => ({
+                    jogo: item.jogo,
+                    escolha: item.escolha,
+                    odd: Number(item.odd),
+                    nomeEscolha: item.nomeEscolha
+                })),
+                status: "ativa",
+                criadaEm: new Date().toISOString()
+            });
 
             const lista = carrinhos[userId]
                 .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
