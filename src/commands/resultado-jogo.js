@@ -49,6 +49,27 @@ function montarRankingRodada(rodadaStats) {
         .join("\n");
 }
 
+function garantirStats(rodadaStats, userId) {
+    if (!rodadaStats[userId]) {
+        rodadaStats[userId] = {
+            apostado: 0,
+            retorno: 0,
+            lucro: 0,
+            vitorias: 0,
+            derrotas: 0
+        };
+    }
+}
+
+function atualizarHistorico(historicoApostas, userId, idAposta, atualizacao) {
+    if (!Array.isArray(historicoApostas[userId])) return;
+
+    const aposta = historicoApostas[userId].find(item => item.idAposta === idAposta);
+    if (!aposta) return;
+
+    Object.assign(aposta, atualizacao);
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("resultado-jogo")
@@ -67,7 +88,7 @@ module.exports = {
                     { name: "time2", value: "time2" }
                 )),
 
-    async execute(interaction, jogos, multiplas, saldos, rodadaStats, saveData) {
+    async execute(interaction, jogos, multiplas, saldos, rodadaStats, apostasValores, historicoApostas, saveData) {
         const jogo = interaction.options.getString("jogo");
         const resultado = interaction.options.getString("resultado");
 
@@ -89,7 +110,69 @@ module.exports = {
 
         const ganhadores = [];
         const perdedores = [];
-        let resolvidasAgora = 0;
+
+        let simplesResolvidas = 0;
+        let multiplasResolvidas = 0;
+
+        const apostasDoJogo = apostasValores[jogo] || {};
+
+        for (const userId of Object.keys(apostasDoJogo)) {
+            const aposta = apostasDoJogo[userId];
+            if (!aposta) continue;
+
+            garantirStats(rodadaStats, userId);
+
+            const valorApostado = Number(aposta.valor);
+            const odd = Number(aposta.odd);
+            const retornoPossivel = valorApostado * odd;
+
+            rodadaStats[userId].apostado += valorApostado;
+
+            if (aposta.escolha === resultado) {
+                if (saldos[userId] == null) {
+                    saldos[userId] = 100;
+                }
+
+                saldos[userId] = Number(saldos[userId]) + retornoPossivel;
+
+                const lucroLiquido = retornoPossivel - valorApostado;
+
+                rodadaStats[userId].retorno += retornoPossivel;
+                rodadaStats[userId].lucro += lucroLiquido;
+                rodadaStats[userId].vitorias += 1;
+
+                ganhadores.push(
+                    `<@${userId}> ganhou na **simples** e recebeu **${retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
+                );
+
+                atualizarHistorico(historicoApostas, userId, aposta.idAposta, {
+                    status: "ganhou",
+                    resolvidaEm: new Date().toISOString(),
+                    resultadoJogo: resultado,
+                    retornoRecebido: Number(retornoPossivel),
+                    lucroLiquido: Number(lucroLiquido)
+                });
+            } else {
+                rodadaStats[userId].lucro -= valorApostado;
+                rodadaStats[userId].derrotas += 1;
+
+                perdedores.push(
+                    `<@${userId}> perdeu na **simples** e ficou com **${formatarLucro(-valorApostado)} moedas**`
+                );
+
+                atualizarHistorico(historicoApostas, userId, aposta.idAposta, {
+                    status: "perdeu",
+                    resolvidaEm: new Date().toISOString(),
+                    resultadoJogo: resultado,
+                    retornoRecebido: 0,
+                    lucroLiquido: Number(-valorApostado)
+                });
+            }
+
+            simplesResolvidas += 1;
+        }
+
+        delete apostasValores[jogo];
 
         for (const userId of Object.keys(multiplas)) {
             const multipla = multiplas[userId];
@@ -111,15 +194,7 @@ module.exports = {
                 return jogos[selecao.jogo].resultado === selecao.escolha;
             });
 
-            if (!rodadaStats[userId]) {
-                rodadaStats[userId] = {
-                    apostado: 0,
-                    retorno: 0,
-                    lucro: 0,
-                    vitorias: 0,
-                    derrotas: 0
-                };
-            }
+            garantirStats(rodadaStats, userId);
 
             const valorApostado = Number(multipla.valor);
             const retornoPossivel = Number(multipla.retornoPossivel);
@@ -140,27 +215,37 @@ module.exports = {
                 rodadaStats[userId].vitorias += 1;
 
                 ganhadores.push(
-                    `<@${userId}> recebeu **${retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
+                    `<@${userId}> ganhou na **múltipla** e recebeu **${retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
                 );
+
+                atualizarHistorico(historicoApostas, userId, multipla.idAposta, {
+                    status: "ganhou",
+                    resolvidaEm: new Date().toISOString(),
+                    retornoRecebido: Number(retornoPossivel),
+                    lucroLiquido: Number(lucroLiquido)
+                });
             } else {
                 rodadaStats[userId].lucro -= valorApostado;
                 rodadaStats[userId].derrotas += 1;
 
                 perdedores.push(
-                    `<@${userId}> ficou com **${formatarLucro(-valorApostado)} moedas**`
+                    `<@${userId}> perdeu na **múltipla** e ficou com **${formatarLucro(-valorApostado)} moedas**`
                 );
+
+                atualizarHistorico(historicoApostas, userId, multipla.idAposta, {
+                    status: "perdeu",
+                    resolvidaEm: new Date().toISOString(),
+                    retornoRecebido: 0,
+                    lucroLiquido: Number(-valorApostado)
+                });
             }
 
             multipla.resolvida = true;
             delete multiplas[userId];
-            resolvidasAgora += 1;
+            multiplasResolvidas += 1;
         }
 
         saveData();
-
-        const resumoResolucao = resolvidasAgora > 0
-            ? `🎟️ Múltiplas resolvidas agora: **${resolvidasAgora}**`
-            : "🎟️ Nenhuma múltipla foi resolvida ainda com esse resultado.";
 
         return interaction.reply({
             content:
@@ -169,7 +254,8 @@ module.exports = {
 🎮 Jogo: **${jogos[jogo].time1} x ${jogos[jogo].time2}**
 📌 Resultado: **${resultado}**
 
-${resumoResolucao}
+🎟️ Simples resolvidas agora: **${simplesResolvidas}**
+🎟️ Múltiplas resolvidas agora: **${multiplasResolvidas}**
 
 ${ganhadores.length ? `💰 **Ganhadores:**\n${ganhadores.join("\n")}` : "💰 **Ganhadores:** ninguém"}
 ${perdedores.length ? `\n\n❌ **Perdedores:**\n${perdedores.join("\n")}` : "\n\n❌ **Perdedores:** ninguém"}
