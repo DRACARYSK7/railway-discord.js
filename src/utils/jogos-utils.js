@@ -8,6 +8,23 @@ function formatOdd(valor) {
     return Number(valor).toFixed(2);
 }
 
+function formatarDataHoraBR(data, horario) {
+    if (!data && !horario) return "Não definido";
+    if (!data) return horario || "Não definido";
+
+    const partes = String(data).split("-");
+    if (partes.length !== 3) {
+        return horario ? `${data} às ${horario}` : data;
+    }
+
+    const [ano, mes, dia] = partes;
+    const dataFormatada = `${dia}/${mes}/${ano}`;
+
+    if (!horario) return dataFormatada;
+
+    return `${dataFormatada} às ${horario}`;
+}
+
 function jogoJaComecou(jogo) {
     if (!jogo?.dataJogo || !jogo?.horarioJogo) return false;
 
@@ -66,14 +83,14 @@ function descobrirTextoResultado(jogo) {
 function montarMensagemJogo(jogoId, jogo, acertadoresSimples = []) {
     const status = descobrirTextoStatus(jogo);
     const resultado = descobrirTextoResultado(jogo);
+    const dataHora = formatarDataHoraBR(jogo.dataJogo, jogo.horarioJogo);
 
     const linhas = [
         "🎮 **NOVA APOSTA CRIADA**",
         "",
         `🆔 Jogo: **${jogoId}**`,
         `⚽ **${jogo.time1}** x **${jogo.time2}**`,
-        `📅 Data: **${jogo.dataJogo || "Não definida"}**`,
-        `🕒 Horário: **${jogo.horarioJogo || "Não definido"}**`,
+        `📅 **${dataHora}**`,
         `📌 Status: **${status}**`
     ];
 
@@ -137,6 +154,7 @@ function fecharMercadosAutomaticamente(jogos) {
 
 module.exports = {
     formatOdd,
+    formatarDataHoraBR,
     jogoJaComecou,
     criarBotoesJogo,
     montarMensagemJogo,
