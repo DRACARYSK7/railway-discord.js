@@ -11,7 +11,11 @@ const DEFAULT_DB = {
     multiplas: {},
     rodadaStats: {},
     apostasValores: {},
-    historicoApostas: {}
+    historicoApostas: {},
+    painelRodada: {
+        channelId: null,
+        messageId: null
+    }
 };
 
 function cloneDefaultDb() {
@@ -26,7 +30,13 @@ function normalizeDb(data) {
         multiplas: data && typeof data.multiplas === "object" && data.multiplas !== null ? data.multiplas : {},
         rodadaStats: data && typeof data.rodadaStats === "object" && data.rodadaStats !== null ? data.rodadaStats : {},
         apostasValores: data && typeof data.apostasValores === "object" && data.apostasValores !== null ? data.apostasValores : {},
-        historicoApostas: data && typeof data.historicoApostas === "object" && data.historicoApostas !== null ? data.historicoApostas : {}
+        historicoApostas: data && typeof data.historicoApostas === "object" && data.historicoApostas !== null ? data.historicoApostas : {},
+        painelRodada: data && typeof data.painelRodada === "object" && data.painelRodada !== null
+            ? {
+                channelId: data.painelRodada.channelId || null,
+                messageId: data.painelRodada.messageId || null
+            }
+            : { channelId: null, messageId: null }
     };
 }
 
