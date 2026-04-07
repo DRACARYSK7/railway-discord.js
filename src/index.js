@@ -96,12 +96,11 @@ function criarBotoesPainelStaff() {
 }
 
 function montarConteudoPainelStaff(extra = "") {
-    return [
-        "📊 **PAINEL STAFF**",
-        `👥 Usuários: ${Object.keys(saldos).length}`,
-        `🎮 Jogos: ${Object.keys(jogos).length}`,
-        extra || ""
-    ].join("\n");
+    return `📊 **PAINEL STAFF**
+👥 Usuários: ${Object.keys(saldos).length}
+🎮 Jogos: ${Object.keys(jogos).length}
+
+${extra || ""}`;
 }
 
 async function atualizarOuCriarPainelStaff(interaction, extra = "") {
@@ -119,6 +118,7 @@ async function atualizarOuCriarPainelStaff(interaction, extra = "") {
 
 client.once("clientReady", async () => {
     console.log(`Logado como ${client.user.tag}`);
+    console.log(`DB: ${DB_PATH}`);
 
     const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
@@ -145,8 +145,10 @@ client.once("clientReady", async () => {
 
 client.on("interactionCreate", async (interaction) => {
 
+    // COMANDOS
     if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === "painel-staff") {
+
+        if (interaction.commandName === painelStaffCommand.data.name) {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({ content: "❌ Sem permissão", ephemeral: true });
             }
@@ -154,14 +156,66 @@ client.on("interactionCreate", async (interaction) => {
             await interaction.reply({ content: "Painel enviado", ephemeral: true });
             return atualizarOuCriarPainelStaff(interaction);
         }
+
+        if (interaction.commandName === saldoCommand.data.name) {
+            return saldoCommand.execute(interaction, saldos, saveAll);
+        }
+
+        if (interaction.commandName === rankingCommand.data.name) {
+            return rankingCommand.execute(interaction, saldos);
+        }
     }
 
+    // BOTÕES
     if (interaction.isButton()) {
+
         const id = interaction.customId;
 
-        if (!temPermissaoStaff(interaction)) return;
+        if (!temPermissaoStaff(interaction)) {
+            return interaction.reply({ content: "❌ Sem permissão", ephemeral: true });
+        }
+
+        // ✅ AGORA TODOS FUNCIONAM
+        if (id === "staff_atualizar") {
+            await interaction.deferUpdate();
+            return atualizarOuCriarPainelStaff(interaction, "🔄 Atualizado");
+        }
+
+        if (id === "staff_ver_ranking") {
+            const ranking = Object.entries(saldos)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([userId, saldo], i) => `${i + 1}. <@${userId}> — ${saldo}`)
+                .join("\n");
+
+            return interaction.reply({
+                content: `🏆 Ranking:\n\n${ranking || "ninguém"}`,
+                ephemeral: true
+            });
+        }
+
+        if (id === "staff_ver_apostas") {
+            return interaction.reply({
+                content: "📄 Use /ver-apostas",
+                ephemeral: true
+            });
+        }
+
+        if (id === "staff_resetar_rodada") {
+            for (const userId in rodadaStats) {
+                delete rodadaStats[userId];
+            }
+
+            saveAll();
+
+            return interaction.reply({
+                content: "🗑️ Rodada resetada",
+                ephemeral: true
+            });
+        }
 
         if (id === "staff_adicionar_moedas" || id === "staff_remover_moedas") {
+
             const modal = new ModalBuilder()
                 .setCustomId(id === "staff_adicionar_moedas" ? "modal_add" : "modal_remove")
                 .setTitle("Moedas");
@@ -207,9 +261,11 @@ client.on("interactionCreate", async (interaction) => {
         }
     }
 
+    // MODAIS
     if (interaction.isModalSubmit()) {
 
         if (interaction.customId === "modal_add" || interaction.customId === "modal_remove") {
+
             const userId = extrairUserId(interaction.fields.getTextInputValue("usuario"));
             const valor = Number(interaction.fields.getTextInputValue("valor"));
 
@@ -238,6 +294,7 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.customId === "modal_saldo") {
             const userId = extrairUserId(interaction.fields.getTextInputValue("usuario"));
+
             return interaction.reply({
                 content: `💰 Saldo: ${saldos[userId] || 100}`,
                 ephemeral: true
