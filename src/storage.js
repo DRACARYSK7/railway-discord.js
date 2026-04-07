@@ -10,7 +10,8 @@ const DEFAULT_DB = {
     carrinhos: {},
     multiplas: {},
     rodadaStats: {},
-    apostasValores: {}
+    apostasValores: {},
+    historicoApostas: {}
 };
 
 function cloneDefaultDb() {
@@ -24,7 +25,8 @@ function normalizeDb(data) {
         carrinhos: data && typeof data.carrinhos === "object" && data.carrinhos !== null ? data.carrinhos : {},
         multiplas: data && typeof data.multiplas === "object" && data.multiplas !== null ? data.multiplas : {},
         rodadaStats: data && typeof data.rodadaStats === "object" && data.rodadaStats !== null ? data.rodadaStats : {},
-        apostasValores: data && typeof data.apostasValores === "object" && data.apostasValores !== null ? data.apostasValores : {}
+        apostasValores: data && typeof data.apostasValores === "object" && data.apostasValores !== null ? data.apostasValores : {},
+        historicoApostas: data && typeof data.historicoApostas === "object" && data.historicoApostas !== null ? data.historicoApostas : {}
     };
 }
 
