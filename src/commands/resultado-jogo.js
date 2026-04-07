@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
+const { atualizarMensagemJogo } = require("../utils/jogos-utils");
 
 function formatarLucro(valor) {
     return `${valor >= 0 ? "+" : ""}${Number(valor).toFixed(2)}`;
@@ -88,8 +89,8 @@ module.exports = {
                     { name: "time2", value: "time2" }
                 )),
 
-    async execute(interaction, jogos, multiplas, saldos, rodadaStats, apostasValores, historicoApostas, saveData) {
-        const jogo = interaction.options.getString("jogo");
+    async execute(interaction, jogos, multiplas, saldos, rodadaStats, apostasValores, historicoApostas, saveData, client) {
+        const jogo = interaction.options.getString("jogo").trim().toLowerCase();
         const resultado = interaction.options.getString("resultado");
 
         if (!jogos[jogo]) {
@@ -107,9 +108,11 @@ module.exports = {
         }
 
         jogos[jogo].resultado = resultado;
+        jogos[jogo].aberto = false;
 
         const ganhadores = [];
         const perdedores = [];
+        const acertadoresSimples = [];
 
         let simplesResolvidas = 0;
         let multiplasResolvidas = 0;
@@ -144,6 +147,8 @@ module.exports = {
                 ganhadores.push(
                     `<@${userId}> ganhou na **simples** e recebeu **${retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
                 );
+
+                acertadoresSimples.push(userId);
 
                 atualizarHistorico(historicoApostas, userId, aposta.idAposta, {
                     status: "ganhou",
@@ -246,6 +251,7 @@ module.exports = {
         }
 
         saveData();
+        await atualizarMensagemJogo(client, jogo, jogos[jogo], acertadoresSimples);
 
         return interaction.reply({
             content:
