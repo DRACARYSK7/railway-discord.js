@@ -1,13 +1,8 @@
+const { SlashCommandBuilder } = require("discord.js");
 const {
-    SlashCommandBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle
-} = require("discord.js");
-
-function formatOdd(valor) {
-    return Number(valor).toFixed(2);
-}
+    criarBotoesJogo,
+    montarMensagemJogo
+} = require("../utils/jogos-utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -36,6 +31,14 @@ module.exports = {
         .addNumberOption(option =>
             option.setName("odd2")
                 .setDescription("Odd do segundo time")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("data")
+                .setDescription("Data do jogo no formato AAAA-MM-DD. Ex: 2026-04-08")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("horario")
+                .setDescription("Horário do jogo no formato HH:MM. Ex: 21:30")
                 .setRequired(true)),
 
     async execute(interaction, jogos, saveData) {
@@ -45,6 +48,8 @@ module.exports = {
         const oddEmpate = interaction.options.getNumber("oddempate");
         const time2 = interaction.options.getString("time2").trim();
         const odd2 = interaction.options.getNumber("odd2");
+        const dataJogo = interaction.options.getString("data").trim();
+        const horarioJogo = interaction.options.getString("horario").trim();
 
         if (jogos[jogo]) {
             return interaction.reply({
@@ -60,37 +65,27 @@ module.exports = {
             time2,
             odd2,
             aberto: true,
-            resultado: null
+            resultado: null,
+            dataJogo,
+            horarioJogo,
+            channelId: null,
+            messageId: null
         };
+
+        const components = criarBotoesJogo(jogo, jogos[jogo]);
+
+        await interaction.reply({
+            content: montarMensagemJogo(jogo, jogos[jogo]),
+            components
+        });
+
+        const resposta = await interaction.fetchReply();
+
+        jogos[jogo].channelId = resposta.channelId;
+        jogos[jogo].messageId = resposta.id;
 
         saveData();
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`bet|${jogo}|time1`)
-                .setLabel(`${time1} (${formatOdd(odd1)})`)
-                .setStyle(ButtonStyle.Primary),
-
-            new ButtonBuilder()
-                .setCustomId(`bet|${jogo}|empate`)
-                .setLabel(`Empate (${formatOdd(oddEmpate)})`)
-                .setStyle(ButtonStyle.Secondary),
-
-            new ButtonBuilder()
-                .setCustomId(`bet|${jogo}|time2`)
-                .setLabel(`${time2} (${formatOdd(odd2)})`)
-                .setStyle(ButtonStyle.Danger)
-        );
-
-        return interaction.reply({
-            content:
-`🎮 **Nova aposta criada**
-
-🆔 Jogo: **${jogo}**
-⚽ **${time1}** x **${time2}**
-
-Escolha uma opção abaixo para adicionar ao seu bilhete.`,
-            components: [row]
-        });
+        return;
     }
 };
