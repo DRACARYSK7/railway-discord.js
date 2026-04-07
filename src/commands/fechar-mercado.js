@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
+const { atualizarMensagemJogo } = require("../utils/jogos-utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,35 +11,37 @@ module.exports = {
                 .setRequired(true)
         ),
 
-    async execute(interaction, jogos, saveData) {
-        const jogo = interaction.options.getString("jogo");
+    async execute(interaction, jogos, saveData, client) {
+        const jogoId = interaction.options.getString("jogo").trim().toLowerCase();
 
-        if (!jogos[jogo]) {
+        if (!jogos[jogoId]) {
             return interaction.reply({
                 content: "❌ Esse jogo não existe.",
                 ephemeral: true
             });
         }
 
-        if (!jogos[jogo].aberto) {
+        if (!jogos[jogoId].aberto) {
             return interaction.reply({
                 content: "❌ Esse mercado já está fechado.",
                 ephemeral: true
             });
         }
 
-        jogos[jogo].aberto = false;
+        jogos[jogoId].aberto = false;
 
         saveData();
+        await atualizarMensagemJogo(client, jogoId, jogos[jogoId]);
 
         return interaction.reply({
             content:
 `⏳ **MERCADO ENCERRADO**
 
-🎮 Jogo: **${jogos[jogo].time1} x ${jogos[jogo].time2}**
+🎮 Jogo: **${jogos[jogoId].time1} x ${jogos[jogoId].time2}**
 
 As apostas foram encerradas.
-As odds estão travadas.`
+As odds estão travadas.`,
+            ephemeral: true
         });
     }
 };
