@@ -10,7 +10,8 @@ const {
     ButtonStyle,
     ModalBuilder,
     TextInputBuilder,
-    TextInputStyle
+    TextInputStyle,
+    PermissionFlagsBits
 } = require("discord.js");
 
 const { loadDatabase, saveDatabase, DB_PATH } = require("./storage");
@@ -26,6 +27,7 @@ const rankingCommand = require("./commands/ranking.js");
 const rankingRodadaCommand = require("./commands/ranking-rodada.js");
 const resetarRodadaCommand = require("./commands/resetar-rodada.js");
 const verApostasCommand = require("./commands/ver-apostas.js");
+const painelStaffCommand = require("./commands/painel-staff.js");
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
@@ -43,6 +45,7 @@ const historicoApostas = database.historicoApostas || {};
 
 // Painel único por usuário
 const paineisBilhete = {};
+const painelStaffAtivo = {};
 
 function saveAll() {
     saveDatabase({
@@ -58,6 +61,31 @@ function saveAll() {
 
 function gerarIdAposta() {
     return `multipla_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+}
+
+function temPermissaoStaff(interaction) {
+    return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+}
+
+function extrairUserId(input) {
+    if (!input) return null;
+
+    const texto = input.trim();
+
+    const mentionMatch = texto.match(/^<@!?(\d+)>$/);
+    if (mentionMatch) return mentionMatch[1];
+
+    const idMatch = texto.match(/^(\d{16,25})$/);
+    if (idMatch) return idMatch[1];
+
+    return null;
+}
+
+function formatarStatusAposta(status) {
+    if (status === "ativa") return "🟡 ativa";
+    if (status === "ganhou") return "🟢 ganhou";
+    if (status === "perdeu") return "🔴 perdeu";
+    return "⚪ desconhecido";
 }
 
 function criarBotoesPainel(userId) {
@@ -87,6 +115,44 @@ function criarBotoesPainel(userId) {
             .setLabel("Limpar bilhete")
             .setStyle(ButtonStyle.Danger)
     );
+}
+
+function criarBotoesPainelStaff() {
+    const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("staff_atualizar")
+            .setLabel("Atualizar painel")
+            .setStyle(ButtonStyle.Primary),
+
+        new ButtonBuilder()
+            .setCustomId("staff_ver_apostas")
+            .setLabel("Ver apostas")
+            .setStyle(ButtonStyle.Secondary),
+
+        new ButtonBuilder()
+            .setCustomId("staff_ver_ranking")
+            .setLabel("Ver ranking")
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("staff_adicionar_moedas")
+            .setLabel("Adicionar moedas")
+            .setStyle(ButtonStyle.Success),
+
+        new ButtonBuilder()
+            .setCustomId("staff_ver_saldo_membro")
+            .setLabel("Ver saldo membro")
+            .setStyle(ButtonStyle.Secondary),
+
+        new ButtonBuilder()
+            .setCustomId("staff_resetar_rodada")
+            .setLabel("Resetar rodada")
+            .setStyle(ButtonStyle.Danger)
+    );
+
+    return [row1, row2];
 }
 
 function montarConteudoBilhete(userId, extra = "") {
@@ -158,6 +224,166 @@ function montarConteudoMinhasApostas(userId, extra = "") {
     ].join("\n");
 }
 
+function contarApostasSimplesAtivas() {
+    let total = 0;
+
+    for (const jogoId of Object.keys(apostasValores)) {
+        const apostasDoJogo = apostasValores[jogoId] || {};
+        total += Object.keys(apostasDoJogo).length;
+    }
+
+    return total;
+}
+
+function somarApostasSimplesAtivas() {
+    let total = 0;
+
+    for (const jogoId of Object.keys(apostasValores)) {
+        const apostasDoJogo = apostasValores[jogoId] || {};
+
+        for (const userId of Object.keys(apostasDoJogo)) {
+            total += Number(apostasDoJogo[userId]?.valor || 0);
+        }
+    }
+
+    return total;
+}
+
+function contarMultiplasAtivas() {
+    let total = 0;
+
+    for (const userId of Object.keys(multiplas)) {
+        if (multiplas[userId] && !multiplas[userId].resolvida) {
+            total += 1;
+        }
+    }
+
+    return total;
+}
+
+function somarMultiplasAtivas() {
+    let total = 0;
+
+    for (const userId of Object.keys(multiplas)) {
+        if (multiplas[userId] && !multiplas[userId].resolvida) {
+            total += Number(multiplas[userId].valor || 0);
+        }
+    }
+
+    return total;
+}
+
+function montarConteudoPainelStaff(extra = "") {
+    const totalJogos = Object.keys(jogos).length;
+    const jogosAbertos = Object.values(jogos).filter(jogo => jogo?.aberto).length;
+    const jogosFechados = Object.values(jogos).filter(jogo => jogo && !jogo.aberto).length;
+    const simplesAtivas = contarApostasSimplesAtivas();
+    const multiplasAtivas = contarMultiplasAtivas();
+    const totalSimples = somarApostasSimplesAtivas();
+    const totalMultiplas = somarMultiplasAtivas();
+    const totalUsuariosSaldo = Object.keys(saldos).length;
+    const totalHistoricos = Object.values(historicoApostas).reduce((acc, lista) => {
+        return acc + (Array.isArray(lista) ? lista.length : 0);
+    }, 0);
+
+    return [
+        "📊 **PAINEL STAFF - VISÃO GERAL**",
+        "",
+        `👥 Usuários com saldo registrado: **${totalUsuariosSaldo}**`,
+        `🎮 Jogos cadastrados: **${totalJogos}**`,
+        `🟢 Jogos abertos: **${jogosAbertos}**`,
+        `🔴 Jogos fechados: **${jogosFechados}**`,
+        "",
+        `🎟️ Apostas simples ativas: **${simplesAtivas}**`,
+        `🧾 Múltiplas ativas: **${multiplasAtivas}**`,
+        `📚 Histórico total de apostas: **${totalHistoricos}**`,
+        "",
+        `💰 Total apostado em simples ativas: **${totalSimples.toFixed(2)} moedas**`,
+        `💰 Total apostado em múltiplas ativas: **${totalMultiplas.toFixed(2)} moedas**`,
+        extra ? `\n${extra}` : ""
+    ].join("\n");
+}
+
+function montarRankingGeralTexto() {
+    const ranking = Object.entries(saldos)
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
+        .slice(0, 10);
+
+    if (ranking.length === 0) {
+        return "❌ Ainda não há jogadores no ranking de moedas.";
+    }
+
+    const textoRanking = ranking
+        .map(([userId, saldo], index) => {
+            return `${index + 1}. <@${userId}> — **${Number(saldo).toFixed(2)} moedas**`;
+        })
+        .join("\n");
+
+    return `🏆 **RANKING GERAL DE MOEDAS**\n\n${textoRanking}`;
+}
+
+function montarHistoricoCompletoTexto() {
+    const userIds = Object.keys(historicoApostas || {});
+
+    if (userIds.length === 0) {
+        return "❌ Nenhuma aposta foi registrada ainda.";
+    }
+
+    let texto = "📄 **HISTÓRICO DE APOSTAS DOS MEMBROS**\n\n";
+
+    for (const userId of userIds) {
+        const lista = Array.isArray(historicoApostas[userId]) ? [...historicoApostas[userId]] : [];
+
+        texto += `👤 <@${userId}>\n`;
+
+        if (lista.length === 0) {
+            texto += "Nenhuma aposta registrada.\n\n";
+            continue;
+        }
+
+        lista.sort((a, b) => new Date(b.criadaEm || 0) - new Date(a.criadaEm || 0));
+
+        for (const aposta of lista.slice(0, 10)) {
+            if (aposta.tipo === "simples") {
+                texto += `• **Simples** | ${formatarStatusAposta(aposta.status)} | Jogo: \`${aposta.jogo}\` | Escolha: **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**\n`;
+            } else {
+                const selecoesTexto = Array.isArray(aposta.selecoes)
+                    ? aposta.selecoes.map(s => `${s.jogo}: ${s.nomeEscolha}`).join(", ")
+                    : "sem seleções";
+
+                texto += `• **Múltipla** | ${formatarStatusAposta(aposta.status)} | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**\n`;
+                texto += `  Seleções: ${selecoesTexto}\n`;
+            }
+        }
+
+        if (lista.length > 10) {
+            texto += `• ... e mais **${lista.length - 10}** aposta(s)\n`;
+        }
+
+        texto += "\n";
+    }
+
+    return texto;
+}
+
+function dividirEmBlocos(texto, limite = 1900) {
+    const linhas = texto.split("\n");
+    const blocos = [];
+    let atual = "";
+
+    for (const linha of linhas) {
+        if ((atual + linha + "\n").length > limite) {
+            if (atual.trim()) blocos.push(atual);
+            atual = `${linha}\n`;
+        } else {
+            atual += `${linha}\n`;
+        }
+    }
+
+    if (atual.trim()) blocos.push(atual);
+    return blocos;
+}
+
 async function buscarMensagemPainel(userId) {
     const painel = paineisBilhete[userId];
     if (!painel) return null;
@@ -217,6 +443,49 @@ async function removerPainelBilhete(userId) {
     delete paineisBilhete[userId];
 }
 
+async function buscarMensagemPainelStaff() {
+    if (!painelStaffAtivo.channelId || !painelStaffAtivo.messageId) {
+        return null;
+    }
+
+    try {
+        const channel = await client.channels.fetch(painelStaffAtivo.channelId);
+        if (!channel || !channel.isTextBased()) return null;
+
+        const message = await channel.messages.fetch(painelStaffAtivo.messageId);
+        return message;
+    } catch {
+        return null;
+    }
+}
+
+async function atualizarOuCriarPainelStaff(interaction, extra = "") {
+    const conteudo = montarConteudoPainelStaff(extra);
+    const components = criarBotoesPainelStaff();
+
+    const mensagemExistente = await buscarMensagemPainelStaff();
+
+    if (mensagemExistente) {
+        await mensagemExistente.edit({
+            content: conteudo,
+            components,
+            allowedMentions: { parse: [] }
+        });
+        return mensagemExistente;
+    }
+
+    const novaMensagem = await interaction.channel.send({
+        content: conteudo,
+        components,
+        allowedMentions: { parse: [] }
+    });
+
+    painelStaffAtivo.channelId = novaMensagem.channelId;
+    painelStaffAtivo.messageId = novaMensagem.id;
+
+    return novaMensagem;
+}
+
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Database carregado de: ${DB_PATH}`);
@@ -241,7 +510,8 @@ client.once("clientReady", async () => {
                     rankingCommand.data.toJSON(),
                     rankingRodadaCommand.data.toJSON(),
                     resetarRodadaCommand.data.toJSON(),
-                    verApostasCommand.data.toJSON()
+                    verApostasCommand.data.toJSON(),
+                    painelStaffCommand.data.toJSON()
                 ]
             }
         );
@@ -312,6 +582,23 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.commandName === verApostasCommand.data.name) {
             return verApostasCommand.execute(interaction, historicoApostas);
+        }
+
+        if (interaction.commandName === painelStaffCommand.data.name) {
+            if (!temPermissaoStaff(interaction)) {
+                return interaction.reply({
+                    content: "❌ Você não tem permissão para usar o painel staff.",
+                    ephemeral: true
+                });
+            }
+
+            await interaction.reply({
+                content: "✅ Painel staff enviado no canal.",
+                ephemeral: true
+            });
+
+            await atualizarOuCriarPainelStaff(interaction);
+            return;
         }
     }
 
@@ -456,6 +743,105 @@ client.on("interactionCreate", async (interaction) => {
                 return interaction.showModal(modal);
             }
         }
+
+        if (customId.startsWith("staff_")) {
+            if (!temPermissaoStaff(interaction)) {
+                return interaction.reply({
+                    content: "❌ Você não tem permissão para usar o painel staff.",
+                    ephemeral: true
+                });
+            }
+
+            if (customId === "staff_atualizar") {
+                await interaction.deferUpdate();
+                await atualizarOuCriarPainelStaff(interaction, "🔄 Painel atualizado.");
+                return;
+            }
+
+            if (customId === "staff_ver_ranking") {
+                return interaction.reply({
+                    content: montarRankingGeralTexto(),
+                    ephemeral: true
+                });
+            }
+
+            if (customId === "staff_ver_apostas") {
+                const texto = montarHistoricoCompletoTexto();
+                const blocos = dividirEmBlocos(texto);
+
+                await interaction.reply({
+                    content: blocos[0],
+                    ephemeral: true
+                });
+
+                for (let i = 1; i < blocos.length; i++) {
+                    await interaction.followUp({
+                        content: blocos[i],
+                        ephemeral: true
+                    });
+                }
+
+                return;
+            }
+
+            if (customId === "staff_adicionar_moedas") {
+                const modal = new ModalBuilder()
+                    .setCustomId("modal_staff_adicionar_moedas")
+                    .setTitle("Adicionar moedas");
+
+                const usuarioInput = new TextInputBuilder()
+                    .setCustomId("usuario")
+                    .setLabel("Mencione ou cole o ID do membro")
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder("Ex: @usuario ou 123456789...")
+                    .setRequired(true);
+
+                const valorInput = new TextInputBuilder()
+                    .setCustomId("valor")
+                    .setLabel("Quantidade de moedas")
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder("Ex: 100")
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(usuarioInput),
+                    new ActionRowBuilder().addComponents(valorInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            if (customId === "staff_ver_saldo_membro") {
+                const modal = new ModalBuilder()
+                    .setCustomId("modal_staff_ver_saldo")
+                    .setTitle("Ver saldo de membro");
+
+                const usuarioInput = new TextInputBuilder()
+                    .setCustomId("usuario")
+                    .setLabel("Mencione ou cole o ID do membro")
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder("Ex: @usuario ou 123456789...")
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(usuarioInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            if (customId === "staff_resetar_rodada") {
+                for (const userId of Object.keys(rodadaStats)) {
+                    delete rodadaStats[userId];
+                }
+
+                saveAll();
+
+                await interaction.deferUpdate();
+                await atualizarOuCriarPainelStaff(interaction, "🗑️ Ranking da rodada resetado com sucesso.");
+                return;
+            }
+        }
     }
 
     if (interaction.isModalSubmit()) {
@@ -562,6 +948,73 @@ ${lista}
 📈 Odd total: **${oddTotal.toFixed(2)}**
 💸 Retorno possível: **${retornoPossivel.toFixed(2)} moedas**
 💳 Saldo restante: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+                ephemeral: true
+            });
+        }
+
+        if (interaction.customId === "modal_staff_adicionar_moedas") {
+            if (!temPermissaoStaff(interaction)) {
+                return interaction.reply({
+                    content: "❌ Você não tem permissão para isso.",
+                    ephemeral: true
+                });
+            }
+
+            const usuarioTexto = interaction.fields.getTextInputValue("usuario");
+            const valorTexto = interaction.fields.getTextInputValue("valor");
+
+            const userId = extrairUserId(usuarioTexto);
+            const valor = parseFloat(valorTexto.replace(",", "."));
+
+            if (!userId) {
+                return interaction.reply({
+                    content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
+                    ephemeral: true
+                });
+            }
+
+            if (Number.isNaN(valor) || valor <= 0) {
+                return interaction.reply({
+                    content: "❌ Digite um valor válido maior que 0.",
+                    ephemeral: true
+                });
+            }
+
+            if (saldos[userId] == null) {
+                saldos[userId] = 100;
+            }
+
+            saldos[userId] = Number(saldos[userId]) + Number(valor);
+            saveAll();
+
+            return interaction.reply({
+                content: `✅ Foram adicionadas **${Number(valor).toFixed(2)} moedas** para <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+                ephemeral: true
+            });
+        }
+
+        if (interaction.customId === "modal_staff_ver_saldo") {
+            if (!temPermissaoStaff(interaction)) {
+                return interaction.reply({
+                    content: "❌ Você não tem permissão para isso.",
+                    ephemeral: true
+                });
+            }
+
+            const usuarioTexto = interaction.fields.getTextInputValue("usuario");
+            const userId = extrairUserId(usuarioTexto);
+
+            if (!userId) {
+                return interaction.reply({
+                    content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
+                    ephemeral: true
+                });
+            }
+
+            const saldo = Number(saldos[userId] ?? 100);
+
+            return interaction.reply({
+                content: `👤 Saldo de <@${userId}>: **${saldo.toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
