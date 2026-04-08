@@ -50,9 +50,6 @@ const painelRodada = database.painelRodada || {
     messageId: null
 };
 
-const paineisBilhete = {};
-const painelStaffAtivo = {};
-
 function saveAll() {
     saveDatabase({
         saldos,
@@ -64,21 +61,6 @@ function saveAll() {
         historicoApostas,
         painelRodada
     });
-}
-
-function resetarBancoUmaVez() {
-    for (const key of Object.keys(saldos)) delete saldos[key];
-    for (const key of Object.keys(jogos)) delete jogos[key];
-    for (const key of Object.keys(carrinhos)) delete carrinhos[key];
-    multiplas.length = 0;
-    for (const key of Object.keys(rodadaStats)) delete rodadaStats[key];
-    for (const key of Object.keys(apostasValores)) delete apostasValores[key];
-    for (const key of Object.keys(historicoApostas)) delete historicoApostas[key];
-    painelRodada.channelId = null;
-    painelRodada.messageId = null;
-
-    saveAll();
-    console.log("Banco zerado com sucesso.");
 }
 
 function gerarIdAposta() {
@@ -405,93 +387,38 @@ function dividirEmBlocos(texto, limite = 1900) {
     return blocos;
 }
 
-async function buscarMensagemPainel(userId) {
-    const painel = paineisBilhete[userId];
-    if (!painel) return null;
-
-    try {
-        const channel = await client.channels.fetch(painel.channelId);
-        if (!channel || !channel.isTextBased()) return null;
-
-        const message = await channel.messages.fetch(painel.messageId);
-        return message;
-    } catch {
-        return null;
-    }
-}
-
 async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "", modo = "bilhete") {
     const conteudo = modo === "apostas"
         ? montarConteudoMinhasApostas(userId, extra)
         : montarConteudoBilhete(userId, extra);
 
-    const components = [criarBotoesPainel(userId)];
-    const mensagemExistente = await buscarMensagemPainel(userId);
-
-    if (mensagemExistente) {
-        await mensagemExistente.edit({
-            content: conteudo,
-            components,
-            allowedMentions: { parse: [] }
-        });
-        return mensagemExistente;
-    }
-
-    const novaMensagem = await interaction.channel.send({
+    const payload = {
         content: conteudo,
-        components,
-        allowedMentions: { parse: [] }
-    });
-
-    paineisBilhete[userId] = {
-        channelId: novaMensagem.channelId,
-        messageId: novaMensagem.id
+        components: [criarBotoesPainel(userId)],
+        allowedMentions: { parse: [] },
+        ephemeral: true
     };
 
-    return novaMensagem;
-}
-
-async function buscarMensagemPainelStaff() {
-    if (!painelStaffAtivo.channelId || !painelStaffAtivo.messageId) {
-        return null;
+    if (interaction.deferred || interaction.replied) {
+        return interaction.followUp(payload);
     }
 
-    try {
-        const channel = await client.channels.fetch(painelStaffAtivo.channelId);
-        if (!channel || !channel.isTextBased()) return null;
-
-        const message = await channel.messages.fetch(painelStaffAtivo.messageId);
-        return message;
-    } catch {
-        return null;
-    }
+    return interaction.reply(payload);
 }
 
 async function atualizarOuCriarPainelStaff(interaction, extra = "") {
-    const conteudo = montarConteudoPainelStaff(extra);
-    const components = criarBotoesPainelStaff();
+    const payload = {
+        content: montarConteudoPainelStaff(extra),
+        components: criarBotoesPainelStaff(),
+        allowedMentions: { parse: [] },
+        ephemeral: true
+    };
 
-    const mensagemExistente = await buscarMensagemPainelStaff();
-
-    if (mensagemExistente) {
-        await mensagemExistente.edit({
-            content: conteudo,
-            components,
-            allowedMentions: { parse: [] }
-        });
-        return mensagemExistente;
+    if (interaction.deferred || interaction.replied) {
+        return interaction.followUp(payload);
     }
 
-    const novaMensagem = await interaction.channel.send({
-        content: conteudo,
-        components,
-        allowedMentions: { parse: [] }
-    });
-
-    painelStaffAtivo.channelId = novaMensagem.channelId;
-    painelStaffAtivo.messageId = novaMensagem.id;
-
-    return novaMensagem;
+    return interaction.reply(payload);
 }
 
 async function processarFechamentoAutomaticoMercados() {
@@ -514,7 +441,6 @@ async function processarFechamentoAutomaticoMercados() {
 }
 
 client.once("clientReady", async () => {
-
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Database carregado de: ${DB_PATH}`);
 
@@ -623,13 +549,7 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
-            await interaction.reply({
-                content: "✅ Painel staff enviado no canal.",
-                ephemeral: true
-            });
-
-            await atualizarOuCriarPainelStaff(interaction);
-            return;
+            return atualizarOuCriarPainelStaff(interaction);
         }
     }
 
