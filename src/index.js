@@ -514,7 +514,6 @@ async function processarFechamentoAutomaticoMercados() {
 }
 
 client.once("clientReady", async () => {
-    resetarBancoUmaVez();
 
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Database carregado de: ${DB_PATH}`);
