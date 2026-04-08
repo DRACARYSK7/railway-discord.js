@@ -152,6 +152,109 @@ function fecharMercadosAutomaticamente(jogos) {
     return jogosFechados;
 }
 
+/* ========================= */
+/* 🔥 NOVO: RESUMO DA RODADA */
+/* ========================= */
+
+function montarRankingMoedasResumo(saldos) {
+    const ranking = Object.entries(saldos)
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
+        .slice(0, 10);
+
+    if (ranking.length === 0) return "ninguém";
+
+    return ranking
+        .map(([userId, saldo], index) =>
+            `${index + 1}. <@${userId}> — **${Number(saldo).toFixed(2)} moedas**`
+        )
+        .join("\n");
+}
+
+function montarRankingRodadaResumo(rodadaStats) {
+    const ranking = Object.entries(rodadaStats)
+        .filter(([, d]) =>
+            Number(d.apostado) > 0 ||
+            Number(d.retorno) > 0 ||
+            Number(d.lucro) !== 0
+        )
+        .sort((a, b) => Number(b[1].lucro) - Number(a[1].lucro))
+        .slice(0, 10);
+
+    if (ranking.length === 0) return "ninguém";
+
+    return ranking
+        .map(([userId, d], index) =>
+            `${index + 1}. <@${userId}> — **${Number(d.lucro).toFixed(2)}** | Apostado: ${Number(d.apostado).toFixed(2)} | Retorno: ${Number(d.retorno).toFixed(2)}`
+        )
+        .join("\n");
+}
+
+function montarResumoResultadosRodada(jogos, saldos, rodadaStats) {
+    const finalizados = Object.entries(jogos)
+        .filter(([, jogo]) => jogo?.resultado)
+        .map(([_, jogo]) => {
+            let resultadoTexto = "Aguardando";
+
+            if (jogo.resultado === "time1") resultadoTexto = jogo.time1;
+            if (jogo.resultado === "empate") resultadoTexto = "Empate";
+            if (jogo.resultado === "time2") resultadoTexto = jogo.time2;
+
+            return `• **${jogo.time1} x ${jogo.time2}** — ${resultadoTexto}`;
+        });
+
+    return [
+        "🏁 **RESULTADOS DA RODADA**",
+        "",
+        finalizados.length
+            ? finalizados.join("\n")
+            : "Nenhum resultado registrado ainda.",
+        "",
+        "🏆 **RANKING DE MOEDAS**",
+        montarRankingMoedasResumo(saldos),
+        "",
+        "📊 **RANKING DA RODADA**",
+        montarRankingRodadaResumo(rodadaStats)
+    ].join("\n");
+}
+
+async function atualizarOuCriarPainelRodada(
+    client,
+    painelRodada,
+    jogos,
+    saldos,
+    rodadaStats
+) {
+    const conteudo = montarResumoResultadosRodada(
+        jogos,
+        saldos,
+        rodadaStats
+    );
+
+    if (painelRodada?.channelId && painelRodada?.messageId) {
+        try {
+            const channel = await client.channels.fetch(painelRodada.channelId);
+            if (!channel?.isTextBased()) return;
+
+            const message = await channel.messages.fetch(
+                painelRodada.messageId
+            );
+
+            await message.edit({
+                content: conteudo,
+                allowedMentions: { parse: [] }
+            });
+
+            return true;
+        } catch (error) {
+            console.error("Erro ao atualizar painel da rodada:", error);
+        }
+    }
+
+    return false;
+}
+
+/* ========================= */
+
 module.exports = {
     formatOdd,
     formatarDataHoraBR,
@@ -159,5 +262,7 @@ module.exports = {
     criarBotoesJogo,
     montarMensagemJogo,
     atualizarMensagemJogo,
-    fecharMercadosAutomaticamente
+    fecharMercadosAutomaticamente,
+    montarResumoResultadosRodada,
+    atualizarOuCriarPainelRodada
 };
