@@ -90,10 +90,10 @@ function extrairUserId(input) {
 }
 
 function formatarStatusAposta(status) {
-    if (status === "ativa") return "ð¡ ativa";
-    if (status === "ganhou") return "ð¢ ganhou";
-    if (status === "perdeu") return "ð´ perdeu";
-    return "âª desconhecido";
+    if (status === "ativa") return "🟡 ativa";
+    if (status === "ganhou") return "🟢 ganhou";
+    if (status === "perdeu") return "🔴 perdeu";
+    return "⚪ desconhecido";
 }
 
 function criarBotoesPainel(userId) {
@@ -115,7 +115,7 @@ function criarBotoesPainel(userId) {
 
         new ButtonBuilder()
             .setCustomId(`painel_fechar|${userId}`)
-            .setLabel("Fechar mÃºltipla")
+            .setLabel("Fechar múltipla")
             .setStyle(ButtonStyle.Success),
 
         new ButtonBuilder()
@@ -181,28 +181,28 @@ function montarConteudoBilhete(userId, extra = "") {
 
     if (itens.length === 0) {
         return [
-            `ð§¾ **Bilhete de <@${userId}>**`,
+            `🧾 **Bilhete de <@${userId}>**`,
             "",
-            "â Seu bilhete estÃ¡ vazio.",
+            "❌ Seu bilhete está vazio.",
             "",
-            `ð° Saldo: **${saldo.toFixed(2)} moedas**`,
+            `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
             extra ? `\n${extra}` : ""
         ].join("\n");
     }
 
     const lista = itens
-        .map(item => `ð¯ **${item.jogo}** â **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
+        .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
         .join("\n");
 
     const oddParcial = itens.reduce((acc, item) => acc * Number(item.odd), 1);
 
     return [
-        `ð§¾ **Bilhete de <@${userId}>**`,
+        `🧾 **Bilhete de <@${userId}>**`,
         "",
         lista,
         "",
-        `ð Odd parcial: **${oddParcial.toFixed(2)}**`,
-        `ð° Saldo: **${saldo.toFixed(2)} moedas**`,
+        `📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
+        `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
         extra ? `\n${extra}` : ""
     ].join("\n");
 }
@@ -213,11 +213,11 @@ function montarConteudoMinhasApostas(userId, extra = "") {
 
     if (lista.length === 0) {
         return [
-            `ð **Apostas de <@${userId}>**`,
+            `📄 **Apostas de <@${userId}>**`,
             "",
-            "â VocÃª ainda nÃ£o fez apostas confirmadas.",
+            "❌ Você ainda não fez apostas confirmadas.",
             "",
-            `ð° Saldo: **${saldo.toFixed(2)} moedas**`,
+            `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
             extra ? `\n${extra}` : ""
         ].join("\n");
     }
@@ -226,24 +226,23 @@ function montarConteudoMinhasApostas(userId, extra = "") {
 
     const textoApostas = lista.slice(0, 10).map((aposta, index) => {
         if (aposta.tipo === "simples") {
-            return `**${index + 1}.** [SIMPLES - ${String(aposta.status || "ativa").toUpperCase()}] \`${aposta.jogo}\` â **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**`;
+            return `**${index + 1}.** [SIMPLES - ${String(aposta.status || "ativa").toUpperCase()}] \`${aposta.jogo}\` → **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**`;
         }
 
         const quantidadeSelecoes = Array.isArray(aposta.selecoes) ? aposta.selecoes.length : 0;
-        return `**${index + 1}.** [MÃLTIPLA - ${String(aposta.status || "ativa").toUpperCase()}] ${quantidadeSelecoes} seleÃ§Ãµes | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**`;
+        return `**${index + 1}.** [MÚLTIPLA - ${String(aposta.status || "ativa").toUpperCase()}] ${quantidadeSelecoes} seleções | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**`;
     }).join("\n");
 
     return [
-        `ð **Apostas de <@${userId}>**`,
+        `📄 **Apostas de <@${userId}>**`,
         "",
         textoApostas,
         "",
-        `ð° Saldo: **${saldo.toFixed(2)} moedas**`,
-        lista.length > 10 ? `ð Mostrando as 10 mais recentes de ${lista.length}.` : "",
+        `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
+        lista.length > 10 ? `📌 Mostrando as 10 mais recentes de ${lista.length}.` : "",
         extra ? `\n${extra}` : ""
     ].join("\n");
 }
-
 function contarApostasSimplesAtivas() {
     let total = 0;
 
@@ -307,19 +306,19 @@ function montarConteudoPainelStaff(extra = "") {
     }, 0);
 
     return [
-        "ð **PAINEL STAFF - VISÃO GERAL**",
+        "📊 **PAINEL STAFF - VISÃO GERAL**",
         "",
-        `ð¥ UsuÃ¡rios com saldo registrado: **${totalUsuariosSaldo}**`,
-        `ð® Jogos cadastrados: **${totalJogos}**`,
-        `ð¢ Jogos abertos: **${jogosAbertos}**`,
-        `ð´ Jogos fechados: **${jogosFechados}**`,
+        `👥 Usuários com saldo registrado: **${totalUsuariosSaldo}**`,
+        `🎮 Jogos cadastrados: **${totalJogos}**`,
+        `🟢 Jogos abertos: **${jogosAbertos}**`,
+        `🔴 Jogos fechados: **${jogosFechados}**`,
         "",
-        `ðï¸ Apostas simples ativas: **${simplesAtivas}**`,
-        `ð§¾ MÃºltiplas ativas: **${multiplasAtivas}**`,
-        `ð HistÃ³rico total de apostas: **${totalHistoricos}**`,
+        `🎟️ Apostas simples ativas: **${simplesAtivas}**`,
+        `🧾 Múltiplas ativas: **${multiplasAtivas}**`,
+        `📚 Histórico total de apostas: **${totalHistoricos}**`,
         "",
-        `ð° Total apostado em simples ativas: **${totalSimples.toFixed(2)} moedas**`,
-        `ð° Total apostado em mÃºltiplas ativas: **${totalMultiplas.toFixed(2)} moedas**`,
+        `💰 Total apostado em simples ativas: **${totalSimples.toFixed(2)} moedas**`,
+        `💰 Total apostado em múltiplas ativas: **${totalMultiplas.toFixed(2)} moedas**`,
         extra ? `\n${extra}` : ""
     ].join("\n");
 }
@@ -330,31 +329,31 @@ function montarRankingGeralTexto() {
         .slice(0, 10);
 
     if (ranking.length === 0) {
-        return "â Ainda nÃ£o hÃ¡ jogadores no ranking de moedas.";
+        return "❌ Ainda não há jogadores no ranking de moedas.";
     }
 
     const textoRanking = ranking
         .map(([userId, saldo], index) => {
-            return `${index + 1}. <@${userId}> â **${Number(saldo).toFixed(2)} moedas**`;
+            return `${index + 1}. <@${userId}> — **${Number(saldo).toFixed(2)} moedas**`;
         })
         .join("\n");
 
-    return `ð **RANKING GERAL DE MOEDAS**\n\n${textoRanking}`;
+    return `🏆 **RANKING GERAL DE MOEDAS**\n\n${textoRanking}`;
 }
 
 function montarHistoricoCompletoTexto() {
     const userIds = Object.keys(historicoApostas || {});
 
     if (userIds.length === 0) {
-        return "â Nenhuma aposta foi registrada ainda.";
+        return "❌ Nenhuma aposta foi registrada ainda.";
     }
 
-    let texto = "ð **HISTÃRICO DE APOSTAS DOS MEMBROS**\n\n";
+    let texto = "📄 **HISTÓRICO DE APOSTAS DOS MEMBROS**\n\n";
 
     for (const userId of userIds) {
         const lista = Array.isArray(historicoApostas[userId]) ? [...historicoApostas[userId]] : [];
 
-        texto += `ð¤ <@${userId}>\n`;
+        texto += `👤 <@${userId}>\n`;
 
         if (lista.length === 0) {
             texto += "Nenhuma aposta registrada.\n\n";
@@ -365,19 +364,19 @@ function montarHistoricoCompletoTexto() {
 
         for (const aposta of lista.slice(0, 10)) {
             if (aposta.tipo === "simples") {
-                texto += `â¢ **Simples** | ${formatarStatusAposta(aposta.status)} | Jogo: \`${aposta.jogo}\` | Escolha: **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**\n`;
+                texto += `• **Simples** | ${formatarStatusAposta(aposta.status)} | Jogo: \`${aposta.jogo}\` | Escolha: **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**\n`;
             } else {
                 const selecoesTexto = Array.isArray(aposta.selecoes)
                     ? aposta.selecoes.map(s => `${s.jogo}: ${s.nomeEscolha}`).join(", ")
-                    : "sem seleÃ§Ãµes";
+                    : "sem seleções";
 
-                texto += `â¢ **MÃºltipla** | ${formatarStatusAposta(aposta.status)} | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**\n`;
-                texto += `  SeleÃ§Ãµes: ${selecoesTexto}\n`;
+                texto += `• **Múltipla** | ${formatarStatusAposta(aposta.status)} | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**\n`;
+                texto += `  Seleções: ${selecoesTexto}\n`;
             }
         }
 
         if (lista.length > 10) {
-            texto += `â¢ ... e mais **${lista.length - 10}** aposta(s)\n`;
+            texto += `• ... e mais **${lista.length - 10}** aposta(s)\n`;
         }
 
         texto += "\n";
@@ -461,7 +460,6 @@ async function removerPainelBilhete(userId) {
 
     delete paineisBilhete[userId];
 }
-
 async function buscarMensagemPainelStaff() {
     if (!painelStaffAtivo.channelId || !painelStaffAtivo.messageId) {
         return null;
@@ -601,17 +599,17 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.commandName === resultadoJogoCommand.data.name) {
             return resultadoJogoCommand.execute(
-    interaction,
-    jogos,
-    multiplas,
-    saldos,
-    rodadaStats,
-    apostasValores,
-    historicoApostas,
-    painelRodada,
-    saveAll,
-    client
-);
+                interaction,
+                jogos,
+                multiplas,
+                saldos,
+                rodadaStats,
+                apostasValores,
+                historicoApostas,
+                painelRodada,
+                saveAll,
+                client
+            );
         }
 
         if (interaction.commandName === rankingCommand.data.name) {
@@ -633,13 +631,13 @@ client.on("interactionCreate", async (interaction) => {
         if (interaction.commandName === painelStaffCommand.data.name) {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
-                    content: "â VocÃª nÃ£o tem permissÃ£o para usar o painel staff.",
+                    content: "❌ Você não tem permissão para usar o painel staff.",
                     ephemeral: true
                 });
             }
 
             await interaction.reply({
-                content: "â Painel staff enviado no canal.",
+                content: "✅ Painel staff enviado no canal.",
                 ephemeral: true
             });
 
@@ -658,14 +656,14 @@ client.on("interactionCreate", async (interaction) => {
 
             if (!jogos[jogo]) {
                 return interaction.reply({
-                    content: "â Esse jogo nÃ£o existe mais.",
+                    content: "❌ Esse jogo não existe mais.",
                     ephemeral: true
                 });
             }
 
             if (!jogos[jogo].aberto) {
                 return interaction.reply({
-                    content: "â As apostas para esse jogo estÃ£o fechadas.",
+                    content: "❌ As apostas para esse jogo estão fechadas.",
                     ephemeral: true
                 });
             }
@@ -684,7 +682,7 @@ client.on("interactionCreate", async (interaction) => {
 
             if (jaExisteNoBilhete) {
                 return interaction.reply({
-                    content: "â VocÃª jÃ¡ adicionou uma opÃ§Ã£o desse jogo no seu bilhete.",
+                    content: "❌ Você já adicionou uma opção desse jogo no seu bilhete.",
                     ephemeral: true
                 });
             }
@@ -717,7 +715,7 @@ client.on("interactionCreate", async (interaction) => {
             saveAll();
 
             await interaction.deferUpdate();
-            await atualizarOuCriarPainelBilhete(interaction, userId, "â Bilhete atualizado.", "bilhete");
+            await atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.", "bilhete");
             return;
         }
 
@@ -727,7 +725,7 @@ client.on("interactionCreate", async (interaction) => {
 
             if (userId !== ownerId) {
                 return interaction.reply({
-                    content: "â Esse painel nÃ£o Ã© seu.",
+                    content: "❌ Esse painel não é seu.",
                     ephemeral: true
                 });
             }
@@ -739,7 +737,7 @@ client.on("interactionCreate", async (interaction) => {
 
             if (acao === "painel_saldo") {
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "ð° Saldo atualizado.", "bilhete");
+                await atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.", "bilhete");
                 return;
             }
 
@@ -751,7 +749,7 @@ client.on("interactionCreate", async (interaction) => {
 
             if (acao === "painel_apostas") {
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "ð HistÃ³rico carregado.", "apostas");
+                await atualizarOuCriarPainelBilhete(interaction, userId, "📄 Histórico carregado.", "apostas");
                 return;
             }
 
@@ -760,21 +758,21 @@ client.on("interactionCreate", async (interaction) => {
                 saveAll();
 
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "ðï¸ Bilhete limpo.", "bilhete");
+                await atualizarOuCriarPainelBilhete(interaction, userId, "🗑️ Bilhete limpo.", "bilhete");
                 return;
             }
 
             if (acao === "painel_fechar") {
                 if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
                     return interaction.reply({
-                        content: "â Seu bilhete estÃ¡ vazio.",
+                        content: "❌ Seu bilhete está vazio.",
                         ephemeral: true
                     });
                 }
 
                 const modal = new ModalBuilder()
                     .setCustomId(`modal_fechar_multipla|${userId}`)
-                    .setTitle("Fechar mÃºltipla");
+                    .setTitle("Fechar múltipla");
 
                 const valorInput = new TextInputBuilder()
                     .setCustomId("valor")
@@ -789,18 +787,17 @@ client.on("interactionCreate", async (interaction) => {
                 return interaction.showModal(modal);
             }
         }
-
-        if (customId.startsWith("staff_")) {
+                if (customId.startsWith("staff_")) {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
-                    content: "â VocÃª nÃ£o tem permissÃ£o para usar o painel staff.",
+                    content: "❌ Você não tem permissão para usar o painel staff.",
                     ephemeral: true
                 });
             }
 
             if (customId === "staff_atualizar") {
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelStaff(interaction, "ð Painel atualizado.");
+                await atualizarOuCriarPainelStaff(interaction, "🔄 Painel atualizado.");
                 return;
             }
 
@@ -933,7 +930,7 @@ client.on("interactionCreate", async (interaction) => {
                 saveAll();
 
                 await interaction.deferUpdate();
-                await atualizarOuCriarPainelStaff(interaction, "ðï¸ Ranking da rodada resetado com sucesso.");
+                await atualizarOuCriarPainelStaff(interaction, "🗑️ Ranking da rodada resetado com sucesso.");
                 return;
             }
         }
@@ -946,7 +943,7 @@ client.on("interactionCreate", async (interaction) => {
 
             if (userId !== ownerId) {
                 return interaction.reply({
-                    content: "â Esse bilhete nÃ£o Ã© seu.",
+                    content: "❌ Esse bilhete não é seu.",
                     ephemeral: true
                 });
             }
@@ -957,7 +954,7 @@ client.on("interactionCreate", async (interaction) => {
 
             if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
                 return interaction.reply({
-                    content: "â Seu bilhete estÃ¡ vazio.",
+                    content: "❌ Seu bilhete está vazio.",
                     ephemeral: true
                 });
             }
@@ -967,14 +964,14 @@ client.on("interactionCreate", async (interaction) => {
 
             if (Number.isNaN(valor) || valor <= 0) {
                 return interaction.reply({
-                    content: "â Digite um valor vÃ¡lido maior que 0.",
+                    content: "❌ Digite um valor válido maior que 0.",
                     ephemeral: true
                 });
             }
 
             if (Number(saldos[userId]) < valor) {
                 return interaction.reply({
-                    content: `â VocÃª nÃ£o tem saldo suficiente. Seu saldo atual Ã© **${Number(saldos[userId]).toFixed(2)} moedas**.`,
+                    content: `❌ Você não tem saldo suficiente. Seu saldo atual é **${Number(saldos[userId]).toFixed(2)} moedas**.`,
                     ephemeral: true
                 });
             }
@@ -1025,7 +1022,7 @@ client.on("interactionCreate", async (interaction) => {
             });
 
             const lista = carrinhos[userId]
-                .map(item => `ð¯ **${item.jogo}** â **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
                 .join("\n");
 
             carrinhos[userId] = [];
@@ -1035,14 +1032,14 @@ client.on("interactionCreate", async (interaction) => {
 
             return interaction.reply({
                 content:
-`â **MÃºltipla registrada!**
+`✅ **Múltipla registrada!**
 
 ${lista}
 
-ð° Valor apostado: **${valor.toFixed(2)} moedas**
-ð Odd total: **${oddTotal.toFixed(2)}**
-ð¸ Retorno possÃ­vel: **${retornoPossivel.toFixed(2)} moedas**
-ð³ Saldo restante: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+💰 Valor apostado: **${valor.toFixed(2)} moedas**
+📈 Odd total: **${oddTotal.toFixed(2)}**
+💸 Retorno possível: **${retornoPossivel.toFixed(2)} moedas**
+💳 Saldo restante: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
@@ -1050,7 +1047,7 @@ ${lista}
         if (interaction.customId === "modal_staff_adicionar_moedas") {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
-                    content: "â VocÃª nÃ£o tem permissÃ£o para isso.",
+                    content: "❌ Você não tem permissão para isso.",
                     ephemeral: true
                 });
             }
@@ -1063,14 +1060,14 @@ ${lista}
 
             if (!userId) {
                 return interaction.reply({
-                    content: "â NÃ£o consegui identificar o usuÃ¡rio. Use menÃ§Ã£o ou ID.",
+                    content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
                     ephemeral: true
                 });
             }
 
             if (Number.isNaN(valor) || valor <= 0) {
                 return interaction.reply({
-                    content: "â Digite um valor vÃ¡lido maior que 0.",
+                    content: "❌ Digite um valor válido maior que 0.",
                     ephemeral: true
                 });
             }
@@ -1083,7 +1080,7 @@ ${lista}
             saveAll();
 
             return interaction.reply({
-                content: `â Foram adicionadas **${Number(valor).toFixed(2)} moedas** para <@${userId}>.\nð° Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+                content: `✅ Foram adicionadas **${Number(valor).toFixed(2)} moedas** para <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
@@ -1091,7 +1088,7 @@ ${lista}
         if (interaction.customId === "modal_staff_remover_moedas") {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
-                    content: "â VocÃª nÃ£o tem permissÃ£o para isso.",
+                    content: "❌ Você não tem permissão para isso.",
                     ephemeral: true
                 });
             }
@@ -1104,14 +1101,14 @@ ${lista}
 
             if (!userId) {
                 return interaction.reply({
-                    content: "â NÃ£o consegui identificar o usuÃ¡rio. Use menÃ§Ã£o ou ID.",
+                    content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
                     ephemeral: true
                 });
             }
 
             if (Number.isNaN(valor) || valor <= 0) {
                 return interaction.reply({
-                    content: "â Digite um valor vÃ¡lido maior que 0.",
+                    content: "❌ Digite um valor válido maior que 0.",
                     ephemeral: true
                 });
             }
@@ -1122,7 +1119,7 @@ ${lista}
 
             if (Number(saldos[userId]) < valor) {
                 return interaction.reply({
-                    content: `â Esse membro nÃ£o tem moedas suficientes para essa remoÃ§Ã£o.\nð° Saldo atual: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+                    content: `❌ Esse membro não tem moedas suficientes para essa remoção.\n💰 Saldo atual: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                     ephemeral: true
                 });
             }
@@ -1131,7 +1128,7 @@ ${lista}
             saveAll();
 
             return interaction.reply({
-                content: `â Foram removidas **${Number(valor).toFixed(2)} moedas** de <@${userId}>.\nð° Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+                content: `✅ Foram removidas **${Number(valor).toFixed(2)} moedas** de <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
@@ -1139,7 +1136,7 @@ ${lista}
         if (interaction.customId === "modal_staff_ver_saldo") {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
-                    content: "â VocÃª nÃ£o tem permissÃ£o para isso.",
+                    content: "❌ Você não tem permissão para isso.",
                     ephemeral: true
                 });
             }
@@ -1149,7 +1146,7 @@ ${lista}
 
             if (!userId) {
                 return interaction.reply({
-                    content: "â NÃ£o consegui identificar o usuÃ¡rio. Use menÃ§Ã£o ou ID.",
+                    content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
                     ephemeral: true
                 });
             }
@@ -1157,7 +1154,7 @@ ${lista}
             const saldo = Number(saldos[userId] ?? 100);
 
             return interaction.reply({
-                content: `ð¤ Saldo de <@${userId}>: **${saldo.toFixed(2)} moedas**`,
+                content: `👤 Saldo de <@${userId}>: **${saldo.toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
@@ -1165,7 +1162,7 @@ ${lista}
         if (interaction.customId === "modal_staff_excluir_jogo") {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
-                    content: "â VocÃª nÃ£o tem permissÃ£o para isso.",
+                    content: "❌ Você não tem permissão para isso.",
                     ephemeral: true
                 });
             }
@@ -1174,14 +1171,14 @@ ${lista}
 
             if (!jogos[jogo]) {
                 return interaction.reply({
-                    content: `â O jogo \`${jogo}\` nÃ£o existe.`,
+                    content: `❌ O jogo \`${jogo}\` não existe.`,
                     ephemeral: true
                 });
             }
 
             if (apostasValores[jogo] && Object.keys(apostasValores[jogo]).length > 0) {
                 return interaction.reply({
-                    content: "â NÃ£o Ã© possÃ­vel excluir esse jogo porque jÃ¡ existem apostas simples vinculadas a ele.",
+                    content: "❌ Não é possível excluir esse jogo porque já existem apostas simples vinculadas a ele.",
                     ephemeral: true
                 });
             }
@@ -1192,7 +1189,7 @@ ${lista}
 
             if (existeEmCarrinho) {
                 return interaction.reply({
-                    content: "â NÃ£o Ã© possÃ­vel excluir esse jogo porque ele estÃ¡ no bilhete de algum membro.",
+                    content: "❌ Não é possível excluir esse jogo porque ele está no bilhete de algum membro.",
                     ephemeral: true
                 });
             }
@@ -1205,7 +1202,7 @@ ${lista}
 
             if (existeEmMultipla) {
                 return interaction.reply({
-                    content: "â NÃ£o Ã© possÃ­vel excluir esse jogo porque jÃ¡ existe mÃºltipla vinculada a ele.",
+                    content: "❌ Não é possível excluir esse jogo porque já existe múltipla vinculada a ele.",
                     ephemeral: true
                 });
             }
@@ -1214,7 +1211,7 @@ ${lista}
             saveAll();
 
             return interaction.reply({
-                content: `â O jogo \`${jogo}\` foi excluÃ­do com sucesso.`,
+                content: `✅ O jogo \`${jogo}\` foi excluído com sucesso.`,
                 ephemeral: true
             });
         }
@@ -1222,7 +1219,7 @@ ${lista}
 });
 
 if (!process.env.TOKEN) {
-    console.error("Erro: TOKEN nÃ£o definido.");
+    console.error("Erro: TOKEN não definido.");
     process.exit(1);
 }
 
