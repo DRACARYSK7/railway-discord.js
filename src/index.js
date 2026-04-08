@@ -66,6 +66,21 @@ function saveAll() {
     });
 }
 
+function resetarBancoUmaVez() {
+    for (const key of Object.keys(saldos)) delete saldos[key];
+    for (const key of Object.keys(jogos)) delete jogos[key];
+    for (const key of Object.keys(carrinhos)) delete carrinhos[key];
+    multiplas.length = 0;
+    for (const key of Object.keys(rodadaStats)) delete rodadaStats[key];
+    for (const key of Object.keys(apostasValores)) delete apostasValores[key];
+    for (const key of Object.keys(historicoApostas)) delete historicoApostas[key];
+    painelRodada.channelId = null;
+    painelRodada.messageId = null;
+
+    saveAll();
+    console.log("Banco zerado com sucesso.");
+}
+
 function gerarIdAposta() {
     return `multipla_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 }
@@ -499,6 +514,8 @@ async function processarFechamentoAutomaticoMercados() {
 }
 
 client.once("clientReady", async () => {
+    resetarBancoUmaVez();
+
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Database carregado de: ${DB_PATH}`);
 
