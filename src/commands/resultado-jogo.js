@@ -1,8 +1,18 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { atualizarMensagemJogo } = require("../utils/jogos-utils");
+const {
+    atualizarMensagemJogo,
+    atualizarOuCriarPainelRodada
+} = require("../utils/jogos-utils");
 
 function formatarLucro(valor) {
     return `${valor >= 0 ? "+" : ""}${Number(valor).toFixed(2)}`;
+}
+
+function formatarResultadoBonito(jogo, resultado) {
+    if (resultado === "time1") return jogo.time1;
+    if (resultado === "empate") return "Empate";
+    if (resultado === "time2") return jogo.time2;
+    return resultado;
 }
 
 function montarRankingMoedas(saldos) {
@@ -89,7 +99,18 @@ module.exports = {
                     { name: "time2", value: "time2" }
                 )),
 
-    async execute(interaction, jogos, multiplas, saldos, rodadaStats, apostasValores, historicoApostas, saveData, client) {
+    async execute(
+        interaction,
+        jogos,
+        multiplas,
+        saldos,
+        rodadaStats,
+        apostasValores,
+        historicoApostas,
+        painelRodada,
+        saveData,
+        client
+    ) {
         const jogo = interaction.options.getString("jogo").trim().toLowerCase();
         const resultado = interaction.options.getString("resultado");
 
@@ -112,21 +133,22 @@ module.exports = {
 
         const ganhadores = [];
         const perdedores = [];
-        const acertadoresSimples = [];
+        const acertadoresSimples = new Set();
 
         let simplesResolvidas = 0;
         let multiplasResolvidas = 0;
 
-        const apostasDoJogo = apostasValores[jogo] || {};
+        const apostasDoJogo = Array.isArray(apostasValores[jogo]) ? apostasValores[jogo] : [];
 
-        for (const userId of Object.keys(apostasDoJogo)) {
-            const aposta = apostasDoJogo[userId];
-            if (!aposta) continue;
+        for (const aposta of apostasDoJogo) {
+            if (!aposta || !aposta.userId) continue;
+
+            const userId = aposta.userId;
 
             garantirStats(rodadaStats, userId);
 
-            const valorApostado = Number(aposta.valor);
-            const odd = Number(aposta.odd);
+            const valorApostado = Number(aposta.valor || 0);
+            const odd = Number(aposta.odd || 0);
             const retornoPossivel = valorApostado * odd;
 
             rodadaStats[userId].apostado += valorApostado;
@@ -148,7 +170,7 @@ module.exports = {
                     `<@${userId}> ganhou na **simples** e recebeu **${retornoPossivel.toFixed(2)} moedas** (lucro: **${formatarLucro(lucroLiquido)}**)`
                 );
 
-                acertadoresSimples.push(userId);
+                acertadoresSimples.add(userId);
 
                 atualizarHistorico(historicoApostas, userId, aposta.idAposta, {
                     status: "ganhou",
@@ -179,21 +201,30 @@ module.exports = {
 
         delete apostasValores[jogo];
 
-        for (const userId of Object.keys(multiplas)) {
-            const multipla = multiplas[userId];
+        const multiplasRestantes = [];
 
-            if (!multipla || multipla.resolvida) continue;
+        for (const multipla of Array.isArray(multiplas) ? multiplas : []) {
+            if (!multipla || multipla.resolvida) {
+                continue;
+            }
 
+            const userId = multipla.userId;
             const contemJogo = Array.isArray(multipla.selecoes) &&
                 multipla.selecoes.some(selecao => selecao.jogo === jogo);
 
-            if (!contemJogo) continue;
+            if (!contemJogo) {
+                multiplasRestantes.push(multipla);
+                continue;
+            }
 
             const todosFinalizados = multipla.selecoes.every(selecao => {
                 return jogos[selecao.jogo] && jogos[selecao.jogo].resultado;
             });
 
-            if (!todosFinalizados) continue;
+            if (!todosFinalizados) {
+                multiplasRestantes.push(multipla);
+                continue;
+            }
 
             const acertouTudo = multipla.selecoes.every(selecao => {
                 return jogos[selecao.jogo].resultado === selecao.escolha;
@@ -201,8 +232,8 @@ module.exports = {
 
             garantirStats(rodadaStats, userId);
 
-            const valorApostado = Number(multipla.valor);
-            const retornoPossivel = Number(multipla.retornoPossivel);
+            const valorApostado = Number(multipla.valor || 0);
+            const retornoPossivel = Number(multipla.retornoPossivel || 0);
 
             rodadaStats[userId].apostado += valorApostado;
 
@@ -245,20 +276,25 @@ module.exports = {
                 });
             }
 
-            multipla.resolvida = true;
-            delete multiplas[userId];
             multiplasResolvidas += 1;
         }
 
+        if (Array.isArray(multiplas)) {
+            multiplas.length = 0;
+            multiplas.push(...multiplasRestantes);
+        }
+
         saveData();
-        await atualizarMensagemJogo(client, jogo, jogos[jogo], acertadoresSimples);
+
+        await atualizarMensagemJogo(client, jogo, jogos[jogo], [...acertadoresSimples]);
+        await atualizarOuCriarPainelRodada(client, painelRodada, jogos, saldos, rodadaStats);
 
         return interaction.reply({
             content:
 `🏁 **RESULTADO REGISTRADO**
 
 🎮 Jogo: **${jogos[jogo].time1} x ${jogos[jogo].time2}**
-📌 Resultado: **${resultado}**
+📌 Resultado: **${formatarResultadoBonito(jogos[jogo], resultado)}**
 
 🎟️ Simples resolvidas agora: **${simplesResolvidas}**
 🎟️ Múltiplas resolvidas agora: **${multiplasResolvidas}**
