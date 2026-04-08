@@ -37,7 +37,7 @@ module.exports = {
 
     async execute(interaction, saldos, jogos, apostasValores, historicoApostas, saveAll) {
         const userId = interaction.user.id;
-        const jogo = interaction.options.getString("jogo");
+        const jogo = interaction.options.getString("jogo").trim().toLowerCase();
         const escolha = interaction.options.getString("escolha");
         const valor = interaction.options.getInteger("valor");
 
@@ -66,15 +66,8 @@ module.exports = {
             });
         }
 
-        if (!apostasValores[jogo]) {
-            apostasValores[jogo] = {};
-        }
-
-        if (apostasValores[jogo][userId]) {
-            return interaction.reply({
-                content: "❌ Você já fez uma aposta simples com valor nesse jogo.",
-                ephemeral: true
-            });
+        if (!Array.isArray(apostasValores[jogo])) {
+            apostasValores[jogo] = [];
         }
 
         let odd = 1;
@@ -101,13 +94,15 @@ module.exports = {
 
         saldos[userId] = Number(saldos[userId]) - Number(valor);
 
-        apostasValores[jogo][userId] = {
+        apostasValores[jogo].push({
             idAposta,
+            userId,
+            jogo,
             escolha,
             valor: Number(valor),
             odd: Number(odd),
             nomeEscolha
-        };
+        });
 
         if (!Array.isArray(historicoApostas[userId])) {
             historicoApostas[userId] = [];
