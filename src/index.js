@@ -621,9 +621,7 @@ client.on("interactionCreate", async (interaction) => {
 
             saveAll();
 
-            await interaction.deferUpdate();
-            await atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.", "bilhete");
-            return;
+            return atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.", "bilhete");
         }
 
         if (customId.startsWith("painel_")) {
@@ -643,30 +641,22 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             if (acao === "painel_saldo") {
-                await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.", "bilhete");
-                return;
+                return atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.", "bilhete");
             }
 
             if (acao === "painel_bilhete") {
-                await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "", "bilhete");
-                return;
+                return atualizarOuCriarPainelBilhete(interaction, userId, "", "bilhete");
             }
 
             if (acao === "painel_apostas") {
-                await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "📄 Histórico carregado.", "apostas");
-                return;
+                return atualizarOuCriarPainelBilhete(interaction, userId, "📄 Histórico carregado.", "apostas");
             }
 
             if (acao === "painel_limpar") {
                 carrinhos[userId] = [];
                 saveAll();
 
-                await interaction.deferUpdate();
-                await atualizarOuCriarPainelBilhete(interaction, userId, "🗑️ Bilhete limpo.", "bilhete");
-                return;
+                return atualizarOuCriarPainelBilhete(interaction, userId, "🗑️ Bilhete limpo.", "bilhete");
             }
 
             if (acao === "painel_fechar") {
@@ -704,9 +694,7 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             if (customId === "staff_atualizar") {
-                await interaction.deferUpdate();
-                await atualizarOuCriarPainelStaff(interaction, "🔄 Painel atualizado.");
-                return;
+                return atualizarOuCriarPainelStaff(interaction, "🔄 Painel atualizado.");
             }
 
             if (customId === "staff_ver_ranking") {
@@ -837,9 +825,7 @@ client.on("interactionCreate", async (interaction) => {
 
                 saveAll();
 
-                await interaction.deferUpdate();
-                await atualizarOuCriarPainelStaff(interaction, "🗑️ Ranking da rodada resetado com sucesso.");
-                return;
+                return atualizarOuCriarPainelStaff(interaction, "🗑️ Ranking da rodada resetado com sucesso.");
             }
         }
     }
