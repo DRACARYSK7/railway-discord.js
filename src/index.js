@@ -46,6 +46,10 @@ const multiplas = database.multiplas || {};
 const rodadaStats = database.rodadaStats || {};
 const apostasValores = database.apostasValores || {};
 const historicoApostas = database.historicoApostas || {};
+const painelRodada = database.painelRodada || {
+    channelId: null,
+    messageId: null
+};
 
 const paineisBilhete = {};
 const painelStaffAtivo = {};
@@ -58,7 +62,8 @@ function saveAll() {
         multiplas,
         rodadaStats,
         apostasValores,
-        historicoApostas
+        historicoApostas,
+        painelRodada
     });
 }
 
