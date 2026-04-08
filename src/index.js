@@ -601,16 +601,17 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.commandName === resultadoJogoCommand.data.name) {
             return resultadoJogoCommand.execute(
-                interaction,
-                jogos,
-                multiplas,
-                saldos,
-                rodadaStats,
-                apostasValores,
-                historicoApostas,
-                saveAll,
-                client
-            );
+    interaction,
+    jogos,
+    multiplas,
+    saldos,
+    rodadaStats,
+    apostasValores,
+    historicoApostas,
+    painelRodada,
+    saveAll,
+    client
+);
         }
 
         if (interaction.commandName === rankingCommand.data.name) {
