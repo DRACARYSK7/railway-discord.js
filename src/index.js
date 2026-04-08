@@ -22,7 +22,6 @@ const {
 
 const pingCommand = require("./commands/ping.js");
 const saldoCommand = require("./commands/saldo.js");
-const apostaCommand = require("./commands/aposta.js");
 const apostarCommand = require("./commands/apostar.js");
 const criarApostaCommand = require("./commands/criar-aposta.js");
 const fecharMercadoCommand = require("./commands/fechar-mercado.js");
@@ -42,7 +41,7 @@ const database = loadDatabase();
 const saldos = database.saldos || {};
 const jogos = database.jogos || {};
 const carrinhos = database.carrinhos || {};
-const multiplas = database.multiplas || {};
+const multiplas = Array.isArray(database.multiplas) ? database.multiplas : [];
 const rodadaStats = database.rodadaStats || {};
 const apostasValores = database.apostasValores || {};
 const historicoApostas = database.historicoApostas || {};
@@ -243,12 +242,13 @@ function montarConteudoMinhasApostas(userId, extra = "") {
         extra ? `\n${extra}` : ""
     ].join("\n");
 }
+
 function contarApostasSimplesAtivas() {
     let total = 0;
 
     for (const jogoId of Object.keys(apostasValores)) {
-        const apostasDoJogo = apostasValores[jogoId] || {};
-        total += Object.keys(apostasDoJogo).length;
+        const apostasDoJogo = Array.isArray(apostasValores[jogoId]) ? apostasValores[jogoId] : [];
+        total += apostasDoJogo.length;
     }
 
     return total;
@@ -258,10 +258,10 @@ function somarApostasSimplesAtivas() {
     let total = 0;
 
     for (const jogoId of Object.keys(apostasValores)) {
-        const apostasDoJogo = apostasValores[jogoId] || {};
+        const apostasDoJogo = Array.isArray(apostasValores[jogoId]) ? apostasValores[jogoId] : [];
 
-        for (const userId of Object.keys(apostasDoJogo)) {
-            total += Number(apostasDoJogo[userId]?.valor || 0);
+        for (const aposta of apostasDoJogo) {
+            total += Number(aposta?.valor || 0);
         }
     }
 
@@ -269,27 +269,14 @@ function somarApostasSimplesAtivas() {
 }
 
 function contarMultiplasAtivas() {
-    let total = 0;
-
-    for (const userId of Object.keys(multiplas)) {
-        if (multiplas[userId] && !multiplas[userId].resolvida) {
-            total += 1;
-        }
-    }
-
-    return total;
+    return multiplas.filter(multipla => multipla && !multipla.resolvida).length;
 }
 
 function somarMultiplasAtivas() {
-    let total = 0;
-
-    for (const userId of Object.keys(multiplas)) {
-        if (multiplas[userId] && !multiplas[userId].resolvida) {
-            total += Number(multiplas[userId].valor || 0);
-        }
-    }
-
-    return total;
+    return multiplas.reduce((acc, multipla) => {
+        if (!multipla || multipla.resolvida) return acc;
+        return acc + Number(multipla.valor || 0);
+    }, 0);
 }
 
 function montarConteudoPainelStaff(extra = "") {
@@ -449,17 +436,6 @@ async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "", mo
     return novaMensagem;
 }
 
-async function removerPainelBilhete(userId) {
-    const mensagem = await buscarMensagemPainel(userId);
-
-    if (mensagem) {
-        try {
-            await mensagem.delete();
-        } catch {}
-    }
-
-    delete paineisBilhete[userId];
-}
 async function buscarMensagemPainelStaff() {
     if (!painelStaffAtivo.channelId || !painelStaffAtivo.messageId) {
         return null;
@@ -538,7 +514,6 @@ client.once("clientReady", async () => {
                 body: [
                     pingCommand.data.toJSON(),
                     saldoCommand.data.toJSON(),
-                    apostaCommand.data.toJSON(),
                     apostarCommand.data.toJSON(),
                     criarApostaCommand.data.toJSON(),
                     fecharMercadoCommand.data.toJSON(),
@@ -572,10 +547,6 @@ client.on("interactionCreate", async (interaction) => {
 
         if (interaction.commandName === saldoCommand.data.name) {
             return saldoCommand.execute(interaction, saldos, saveAll);
-        }
-
-        if (interaction.commandName === apostaCommand.data.name) {
-            return apostaCommand.execute(interaction);
         }
 
         if (interaction.commandName === apostarCommand.data.name) {
@@ -787,7 +758,8 @@ client.on("interactionCreate", async (interaction) => {
                 return interaction.showModal(modal);
             }
         }
-                if (customId.startsWith("staff_")) {
+
+        if (customId.startsWith("staff_")) {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
                     content: "❌ Você não tem permissão para usar o painel staff.",
@@ -959,6 +931,25 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
+            const selecoesInvalidas = carrinhos[userId].filter(item => {
+                const jogo = jogos[item.jogo];
+                return !jogo || !jogo.aberto || jogo.resultado;
+            });
+
+            if (selecoesInvalidas.length > 0) {
+                const jogosInvalidos = selecoesInvalidas.map(item => `• \`${item.jogo}\``).join("\n");
+
+                return interaction.reply({
+                    content:
+`❌ Não foi possível fechar essa múltipla porque há jogo(s) indisponível(is) no bilhete:
+
+${jogosInvalidos}
+
+Use **Limpar bilhete** e monte novamente com mercados abertos.`,
+                    ephemeral: true
+                });
+            }
+
             const valorTexto = interaction.fields.getTextInputValue("valor");
             const valor = parseFloat(valorTexto.replace(",", "."));
 
@@ -987,8 +978,9 @@ client.on("interactionCreate", async (interaction) => {
 
             saldos[userId] = Number(saldos[userId]) - valor;
 
-            multiplas[userId] = {
+            multiplas.push({
                 idAposta,
+                userId,
                 valor: Number(valor),
                 oddTotal: Number(oddTotal),
                 retornoPossivel: Number(retornoPossivel),
@@ -998,8 +990,9 @@ client.on("interactionCreate", async (interaction) => {
                     odd: Number(item.odd),
                     nomeEscolha: item.nomeEscolha
                 })),
-                resolvida: false
-            };
+                resolvida: false,
+                criadaEm: new Date().toISOString()
+            });
 
             if (!Array.isArray(historicoApostas[userId])) {
                 historicoApostas[userId] = [];
@@ -1025,12 +1018,9 @@ client.on("interactionCreate", async (interaction) => {
                 .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
                 .join("\n");
 
-            carrinhos[userId] = [];
-
             saveAll();
-            await removerPainelBilhete(userId);
 
-            return interaction.reply({
+            await interaction.reply({
                 content:
 `✅ **Múltipla registrada!**
 
@@ -1042,6 +1032,14 @@ ${lista}
 💳 Saldo restante: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                 ephemeral: true
             });
+
+            await atualizarOuCriarPainelBilhete(
+                interaction,
+                userId,
+                "✅ Múltipla registrada. Você pode fechar esse mesmo bilhete novamente ou limpar se quiser montar outro.",
+                "bilhete"
+            );
+            return;
         }
 
         if (interaction.customId === "modal_staff_adicionar_moedas") {
@@ -1176,7 +1174,7 @@ ${lista}
                 });
             }
 
-            if (apostasValores[jogo] && Object.keys(apostasValores[jogo]).length > 0) {
+            if (Array.isArray(apostasValores[jogo]) && apostasValores[jogo].length > 0) {
                 return interaction.reply({
                     content: "❌ Não é possível excluir esse jogo porque já existem apostas simples vinculadas a ele.",
                     ephemeral: true
@@ -1194,7 +1192,7 @@ ${lista}
                 });
             }
 
-            const existeEmMultipla = Object.values(multiplas).some(multipla =>
+            const existeEmMultipla = multiplas.some(multipla =>
                 multipla &&
                 Array.isArray(multipla.selecoes) &&
                 multipla.selecoes.some(item => item.jogo === jogo)
