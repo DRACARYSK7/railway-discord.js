@@ -451,7 +451,7 @@ client.once("clientReady", async () => {
         console.log("Registering slash commands...");
 
         await rest.put(
-            Routes.applicationCommands(clientId),
+            Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
             {
                 body: [
                     pingCommand.data.toJSON(),
@@ -1140,6 +1140,11 @@ ${lista}
 
 if (!process.env.TOKEN) {
     console.error("Erro: TOKEN não definido.");
+    process.exit(1);
+}
+
+if (!process.env.GUILD_ID) {
+    console.error("Erro: GUILD_ID não definido.");
     process.exit(1);
 }
 
