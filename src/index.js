@@ -11,7 +11,8 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
-    PermissionFlagsBits
+    PermissionFlagsBits,
+    EmbedBuilder
 } = require("discord.js");
 
 const { loadDatabase, saveDatabase, DB_PATH } = require("./storage");
@@ -92,6 +93,11 @@ function formatarStatusAposta(status) {
     return "⚪ desconhecido";
 }
 
+function formatarOdd(valor) {
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero.toFixed(2) : "0.00";
+}
+
 function criarBotoesPainel(userId) {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -111,7 +117,7 @@ function criarBotoesPainel(userId) {
 
         new ButtonBuilder()
             .setCustomId(`painel_fechar|${userId}`)
-            .setLabel("Fechar múltipla")
+            .setLabel("Concluir aposta")
             .setStyle(ButtonStyle.Success),
 
         new ButtonBuilder()
@@ -165,10 +171,36 @@ function criarBotoesPainelStaff() {
         new ButtonBuilder()
             .setCustomId("staff_excluir_jogo")
             .setLabel("Excluir jogo")
-            .setStyle(ButtonStyle.Danger)
+            .setStyle(ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("staff_postar_painel_aposta")
+            .setLabel("Postar painel de aposta")
+            .setStyle(ButtonStyle.Success)
     );
 
     return [row1, row2, row3];
+}
+
+function obterJogosDisponiveisParaPainel() {
+    return Object.entries(jogos).filter(([, jogo]) => {
+        return jogo && jogo.aberto;
+    });
+}
+
+function normalizarIndicePainel(indice, total) {
+    if (total <= 0) return 0;
+
+    const numero = Number(indice);
+    if (!Number.isFinite(numero)) return 0;
+    if (numero < 0) return total - 1;
+    if (numero >= total) return 0;
+    return numero;
+}
+
+function obterIndiceJogoNoPainel(jogoId) {
+    const disponiveis = obterJogosDisponiveisParaPainel();
+    return disponiveis.findIndex(([id]) => id === jogoId);
 }
 
 function montarConteudoBilhete(userId, extra = "") {
@@ -387,6 +419,132 @@ function dividirEmBlocos(texto, limite = 1900) {
     return blocos;
 }
 
+function montarConteudoPainelAposta(userId, indice, extra = "") {
+    const jogosDisponiveis = obterJogosDisponiveisParaPainel();
+    const saldo = Number(saldos[userId] ?? 100);
+    const itensBilhete = Array.isArray(carrinhos[userId]) ? carrinhos[userId].length : 0;
+
+    if (jogosDisponiveis.length === 0) {
+        return [
+            "🎟️ **PAINEL DE APOSTA**",
+            "",
+            "❌ Não há jogos com mercado aberto no momento.",
+            "",
+            `💰 Seu saldo: **${saldo.toFixed(2)} moedas**`,
+            `🧾 Itens no bilhete: **${itensBilhete}**`,
+            extra ? `\n${extra}` : ""
+        ].join("\n");
+    }
+
+    const indiceAtual = normalizarIndicePainel(indice, jogosDisponiveis.length);
+    const [jogoId, jogo] = jogosDisponiveis[indiceAtual];
+
+    const jaNoBilhete = Array.isArray(carrinhos[userId])
+        ? carrinhos[userId].some(item => item.jogo === jogoId)
+        : false;
+
+    return [
+        "🎟️ **PAINEL DE APOSTA**",
+        "",
+        `📍 Jogo **${indiceAtual + 1}/${jogosDisponiveis.length}**`,
+        `🆔 ID: \`${jogoId}\``,
+        `⚽ **${jogo.time1} x ${jogo.time2}**`,
+        `📅 Data: **${jogo.data || "não informada"}**`,
+        `🕒 Hora: **${jogo.hora || "não informada"}**`,
+        `📌 Status: **${jogo.aberto ? "Mercado aberto" : "Mercado fechado"}**`,
+        "",
+        `1️⃣ **${jogo.time1}** — Odd **${formatarOdd(jogo.odd1)}**`,
+        `🤝 **Empate** — Odd **${formatarOdd(jogo.oddEmpate)}**`,
+        `2️⃣ **${jogo.time2}** — Odd **${formatarOdd(jogo.odd2)}**`,
+        "",
+        `💰 Seu saldo: **${saldo.toFixed(2)} moedas**`,
+        `🧾 Itens no bilhete: **${itensBilhete}**`,
+        jaNoBilhete ? "⚠️ Você já tem uma seleção desse jogo no bilhete atual." : "",
+        extra ? `\n${extra}` : ""
+    ].filter(Boolean).join("\n");
+}
+
+function criarBotoesPainelAposta(userId, indice) {
+    const jogosDisponiveis = obterJogosDisponiveisParaPainel();
+
+    if (jogosDisponiveis.length === 0) {
+        return [criarBotoesPainel(userId)];
+    }
+
+    const indiceAtual = normalizarIndicePainel(indice, jogosDisponiveis.length);
+    const [jogoId] = jogosDisponiveis[indiceAtual];
+
+    const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`mercado_apostar|${userId}|${jogoId}|time1`)
+            .setLabel("Time 1")
+            .setStyle(ButtonStyle.Primary),
+
+        new ButtonBuilder()
+            .setCustomId(`mercado_apostar|${userId}|${jogoId}|empate`)
+            .setLabel("Empate")
+            .setStyle(ButtonStyle.Secondary),
+
+        new ButtonBuilder()
+            .setCustomId(`mercado_apostar|${userId}|${jogoId}|time2`)
+            .setLabel("Time 2")
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`mercado_nav|${userId}|${indiceAtual - 1}`)
+            .setLabel("⬅️ Anterior")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(jogosDisponiveis.length <= 1),
+
+        new ButtonBuilder()
+            .setCustomId(`mercado_indicador|${userId}|${indiceAtual}`)
+            .setLabel(`${indiceAtual + 1}/${jogosDisponiveis.length}`)
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true),
+
+        new ButtonBuilder()
+            .setCustomId(`mercado_nav|${userId}|${indiceAtual + 1}`)
+            .setLabel("Próximo ➡️")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(jogosDisponiveis.length <= 1)
+    );
+
+    return [row1, row2, criarBotoesPainel(userId)];
+}
+
+async function responderPainelAposta(interaction, userId, indice = 0, extra = "") {
+    const payload = {
+        content: montarConteudoPainelAposta(userId, indice, extra),
+        components: criarBotoesPainelAposta(userId, indice),
+        allowedMentions: { parse: [] }
+    };
+
+    if (interaction.isButton() && interaction.customId === "abrir_painel_aposta_publico") {
+        return interaction.reply({
+            ...payload,
+            ephemeral: true
+        });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("mercado_")) {
+        return interaction.update(payload);
+    }
+
+    if (interaction.deferred || interaction.replied) {
+        return interaction.followUp({
+            ...payload,
+            ephemeral: true
+        });
+    }
+
+    return interaction.reply({
+        ...payload,
+        ephemeral: true
+    });
+}
+
 async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "", modo = "bilhete") {
     const conteudo = modo === "apostas"
         ? montarConteudoMinhasApostas(userId, extra)
@@ -556,6 +714,125 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
         const customId = interaction.customId;
 
+        if (customId === "abrir_painel_aposta_publico") {
+            const userId = interaction.user.id;
+
+            if (saldos[userId] == null) {
+                saldos[userId] = 100;
+                saveAll();
+            }
+
+            if (!Array.isArray(carrinhos[userId])) {
+                carrinhos[userId] = [];
+                saveAll();
+            }
+
+            return responderPainelAposta(interaction, userId, 0);
+        }
+
+        if (customId.startsWith("mercado_nav|")) {
+            const [, ownerId, indiceTexto] = customId.split("|");
+            const userId = interaction.user.id;
+
+            if (userId !== ownerId) {
+                return interaction.reply({
+                    content: "❌ Esse painel não é seu.",
+                    ephemeral: true
+                });
+            }
+
+            return responderPainelAposta(interaction, userId, Number(indiceTexto));
+        }
+
+        if (customId.startsWith("mercado_indicador|")) {
+            return interaction.reply({
+                content: "📍 Use os botões Anterior e Próximo para navegar pelos jogos.",
+                ephemeral: true
+            });
+        }
+
+        if (customId.startsWith("mercado_apostar|")) {
+            const [, ownerId, jogo, escolha] = customId.split("|");
+            const userId = interaction.user.id;
+
+            if (userId !== ownerId) {
+                return interaction.reply({
+                    content: "❌ Esse painel não é seu.",
+                    ephemeral: true
+                });
+            }
+
+            if (!jogos[jogo]) {
+                return responderPainelAposta(interaction, userId, 0, "❌ Esse jogo não existe mais.");
+            }
+
+            if (!jogos[jogo].aberto) {
+                const indiceJogoFechado = obterIndiceJogoNoPainel(jogo);
+                return responderPainelAposta(
+                    interaction,
+                    userId,
+                    indiceJogoFechado >= 0 ? indiceJogoFechado : 0,
+                    "❌ As apostas para esse jogo estão fechadas."
+                );
+            }
+
+            if (saldos[userId] == null) {
+                saldos[userId] = 100;
+            }
+
+            if (!Array.isArray(carrinhos[userId])) {
+                carrinhos[userId] = [];
+            }
+
+            const jaExisteNoBilhete = carrinhos[userId].some(item => item.jogo === jogo);
+
+            if (jaExisteNoBilhete) {
+                const indiceAtual = obterIndiceJogoNoPainel(jogo);
+                return responderPainelAposta(
+                    interaction,
+                    userId,
+                    indiceAtual >= 0 ? indiceAtual : 0,
+                    "❌ Você já adicionou uma opção desse jogo no seu bilhete."
+                );
+            }
+
+            let odd = 1;
+            let nomeEscolha = "";
+
+            if (escolha === "time1") {
+                odd = Number(jogos[jogo].odd1);
+                nomeEscolha = jogos[jogo].time1;
+            }
+
+            if (escolha === "empate") {
+                odd = Number(jogos[jogo].oddEmpate);
+                nomeEscolha = "Empate";
+            }
+
+            if (escolha === "time2") {
+                odd = Number(jogos[jogo].odd2);
+                nomeEscolha = jogos[jogo].time2;
+            }
+
+            carrinhos[userId].push({
+                jogo,
+                escolha,
+                odd,
+                nomeEscolha
+            });
+
+            saveAll();
+
+            const indiceAtual = obterIndiceJogoNoPainel(jogo);
+
+            return responderPainelAposta(
+                interaction,
+                userId,
+                indiceAtual >= 0 ? indiceAtual : 0,
+                "✅ Seleção adicionada ao bilhete."
+            );
+        }
+
         if (customId.startsWith("bet|")) {
             const [tipo, jogo, escolha] = customId.split("|");
 
@@ -668,8 +945,8 @@ client.on("interactionCreate", async (interaction) => {
                 }
 
                 const modal = new ModalBuilder()
-                    .setCustomId(`modal_fechar_multipla|${userId}`)
-                    .setTitle("Fechar múltipla");
+                    .setCustomId(`modal_concluir_aposta|${userId}`)
+                    .setTitle("Concluir aposta");
 
                 const valorInput = new TextInputBuilder()
                     .setCustomId("valor")
@@ -721,6 +998,35 @@ client.on("interactionCreate", async (interaction) => {
                 }
 
                 return;
+            }
+
+            if (customId === "staff_postar_painel_aposta") {
+                const embed = new EmbedBuilder()
+                    .setTitle("🎟️ PAINEL DE APOSTA")
+                    .setDescription("Clique no botão abaixo para abrir o mercado da rodada e navegar entre os jogos disponíveis.")
+                    .addFields(
+                        {
+                            name: "📌 Como funciona",
+                            value: "• o painel abre no privado\n• você navega jogo por jogo\n• pode adicionar seleções ao bilhete\n• depois é só clicar em **Concluir aposta**"
+                        }
+                    )
+                    .setFooter({
+                        text: "BetPRL • Paraisópolis"
+                    });
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId("abrir_painel_aposta_publico")
+                        .setLabel("Abrir painel de aposta")
+                        .setStyle(ButtonStyle.Success)
+                );
+
+                await interaction.channel.send({
+                    embeds: [embed],
+                    components: [row]
+                });
+
+                return atualizarOuCriarPainelStaff(interaction, "✅ Painel de aposta postado no canal.");
             }
 
             if (customId === "staff_adicionar_moedas") {
@@ -831,7 +1137,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.isModalSubmit()) {
-        if (interaction.customId.startsWith("modal_fechar_multipla|")) {
+        if (interaction.customId.startsWith("modal_concluir_aposta|")) {
             const [, ownerId] = interaction.customId.split("|");
             const userId = interaction.user.id;
 
@@ -863,7 +1169,7 @@ client.on("interactionCreate", async (interaction) => {
 
                 return interaction.reply({
                     content:
-`❌ Não foi possível fechar essa múltipla porque há jogo(s) indisponível(is) no bilhete:
+`❌ Não foi possível concluir essa aposta porque há jogo(s) indisponível(is) no bilhete:
 
 ${jogosInvalidos}
 
@@ -944,7 +1250,7 @@ Use **Limpar bilhete** e monte novamente com mercados abertos.`,
 
             await interaction.reply({
                 content:
-`✅ **Múltipla registrada!**
+`✅ **Aposta concluída com sucesso!**
 
 ${lista}
 
@@ -958,7 +1264,7 @@ ${lista}
             await atualizarOuCriarPainelBilhete(
                 interaction,
                 userId,
-                "✅ Múltipla registrada. Você pode fechar esse mesmo bilhete novamente ou limpar se quiser montar outro.",
+                "✅ Aposta concluída. Você pode manter esse mesmo bilhete ou limpar para montar outro.",
                 "bilhete"
             );
             return;
