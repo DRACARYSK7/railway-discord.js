@@ -51,6 +51,20 @@ const painelRodada = database.painelRodada || {
     messageId: null
 };
 
+const slashCommands = [
+    pingCommand,
+    saldoCommand,
+    apostarCommand,
+    criarApostaCommand,
+    fecharMercadoCommand,
+    resultadoJogoCommand,
+    rankingCommand,
+    rankingRodadaCommand,
+    resetarRodadaCommand,
+    verApostasCommand,
+    painelStaffCommand
+];
+
 function saveAll() {
     saveDatabase({
         saldos,
@@ -72,11 +86,28 @@ function temPermissaoStaff(interaction) {
     return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
 }
 
+function garantirUsuario(userId) {
+    let alterou = false;
+
+    if (saldos[userId] == null) {
+        saldos[userId] = 100;
+        alterou = true;
+    }
+
+    if (!Array.isArray(carrinhos[userId])) {
+        carrinhos[userId] = [];
+        alterou = true;
+    }
+
+    if (alterou) {
+        saveAll();
+    }
+}
+
 function extrairUserId(input) {
     if (!input) return null;
 
     const texto = input.trim();
-
     const mentionMatch = texto.match(/^<@!?(\d+)>$/);
     if (mentionMatch) return mentionMatch[1];
 
@@ -96,6 +127,41 @@ function formatarStatusAposta(status) {
 function formatarOdd(valor) {
     const numero = Number(valor);
     return Number.isFinite(numero) ? numero.toFixed(2) : "0.00";
+}
+
+function limitarTexto(texto, limite = 40) {
+    const valor = String(texto || "").trim();
+    if (valor.length <= limite) return valor;
+    return `${valor.slice(0, limite - 3)}...`;
+}
+
+function obterDataJogo(jogo) {
+    return jogo?.dataJogo || jogo?.data || "";
+}
+
+function obterHorarioJogo(jogo) {
+    return jogo?.horarioJogo || jogo?.hora || "";
+}
+
+function obterSelecaoDoJogo(jogo, escolha) {
+    if (escolha === "time1") {
+        return {
+            odd: Number(jogo.odd1),
+            nomeEscolha: jogo.time1
+        };
+    }
+
+    if (escolha === "empate") {
+        return {
+            odd: Number(jogo.oddEmpate),
+            nomeEscolha: "Empate"
+        };
+    }
+
+    return {
+        odd: Number(jogo.odd2),
+        nomeEscolha: jogo.time2
+    };
 }
 
 function criarBotoesPainel(userId) {
@@ -128,64 +194,62 @@ function criarBotoesPainel(userId) {
 }
 
 function criarBotoesPainelStaff() {
-    const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId("staff_atualizar")
-            .setLabel("Atualizar painel")
-            .setStyle(ButtonStyle.Primary),
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId("staff_atualizar")
+                .setLabel("Atualizar painel")
+                .setStyle(ButtonStyle.Primary),
 
-        new ButtonBuilder()
-            .setCustomId("staff_ver_apostas")
-            .setLabel("Ver apostas")
-            .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId("staff_ver_apostas")
+                .setLabel("Ver apostas")
+                .setStyle(ButtonStyle.Secondary),
 
-        new ButtonBuilder()
-            .setCustomId("staff_ver_ranking")
-            .setLabel("Ver ranking")
-            .setStyle(ButtonStyle.Secondary)
-    );
+            new ButtonBuilder()
+                .setCustomId("staff_ver_ranking")
+                .setLabel("Ver ranking")
+                .setStyle(ButtonStyle.Secondary)
+        ),
 
-    const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId("staff_adicionar_moedas")
-            .setLabel("Adicionar moedas")
-            .setStyle(ButtonStyle.Success),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId("staff_adicionar_moedas")
+                .setLabel("Adicionar moedas")
+                .setStyle(ButtonStyle.Success),
 
-        new ButtonBuilder()
-            .setCustomId("staff_remover_moedas")
-            .setLabel("Remover moedas")
-            .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId("staff_remover_moedas")
+                .setLabel("Remover moedas")
+                .setStyle(ButtonStyle.Danger),
 
-        new ButtonBuilder()
-            .setCustomId("staff_ver_saldo_membro")
-            .setLabel("Ver saldo membro")
-            .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId("staff_ver_saldo_membro")
+                .setLabel("Ver saldo membro")
+                .setStyle(ButtonStyle.Secondary),
 
-        new ButtonBuilder()
-            .setCustomId("staff_resetar_rodada")
-            .setLabel("Resetar rodada")
-            .setStyle(ButtonStyle.Danger)
-    );
+            new ButtonBuilder()
+                .setCustomId("staff_resetar_rodada")
+                .setLabel("Resetar rodada")
+                .setStyle(ButtonStyle.Danger)
+        ),
 
-    const row3 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId("staff_excluir_jogo")
-            .setLabel("Excluir jogo")
-            .setStyle(ButtonStyle.Danger),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId("staff_excluir_jogo")
+                .setLabel("Excluir jogo")
+                .setStyle(ButtonStyle.Danger),
 
-        new ButtonBuilder()
-            .setCustomId("staff_postar_painel_aposta")
-            .setLabel("Postar painel de aposta")
-            .setStyle(ButtonStyle.Success)
-    );
-
-    return [row1, row2, row3];
+            new ButtonBuilder()
+                .setCustomId("staff_postar_painel_aposta")
+                .setLabel("Postar painel de aposta")
+                .setStyle(ButtonStyle.Success)
+        )
+    ];
 }
 
 function obterJogosDisponiveisParaPainel() {
-    return Object.entries(jogos).filter(([, jogo]) => {
-        return jogo && jogo.aberto;
-    });
+    return Object.entries(jogos).filter(([, jogo]) => jogo && jogo.aberto);
 }
 
 function normalizarIndicePainel(indice, total) {
@@ -199,8 +263,7 @@ function normalizarIndicePainel(indice, total) {
 }
 
 function obterIndiceJogoNoPainel(jogoId) {
-    const disponiveis = obterJogosDisponiveisParaPainel();
-    return disponiveis.findIndex(([id]) => id === jogoId);
+    return obterJogosDisponiveisParaPainel().findIndex(([id]) => id === jogoId);
 }
 
 function montarConteudoBilhete(userId, extra = "") {
@@ -214,12 +277,12 @@ function montarConteudoBilhete(userId, extra = "") {
             "❌ Seu bilhete está vazio.",
             "",
             `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
-            extra ? `\n${extra}` : ""
-        ].join("\n");
+            extra || ""
+        ].filter(Boolean).join("\n");
     }
 
     const lista = itens
-        .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
+        .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${formatarOdd(item.odd)})`)
         .join("\n");
 
     const oddParcial = itens.reduce((acc, item) => acc * Number(item.odd), 1);
@@ -231,8 +294,8 @@ function montarConteudoBilhete(userId, extra = "") {
         "",
         `📈 Odd parcial: **${oddParcial.toFixed(2)}**`,
         `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
-        extra ? `\n${extra}` : ""
-    ].join("\n");
+        extra || ""
+    ].filter(Boolean).join("\n");
 }
 
 function montarConteudoMinhasApostas(userId, extra = "") {
@@ -246,8 +309,8 @@ function montarConteudoMinhasApostas(userId, extra = "") {
             "❌ Você ainda não fez apostas confirmadas.",
             "",
             `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
-            extra ? `\n${extra}` : ""
-        ].join("\n");
+            extra || ""
+        ].filter(Boolean).join("\n");
     }
 
     lista.sort((a, b) => new Date(b.criadaEm || 0) - new Date(a.criadaEm || 0));
@@ -268,33 +331,21 @@ function montarConteudoMinhasApostas(userId, extra = "") {
         "",
         `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
         lista.length > 10 ? `📌 Mostrando as 10 mais recentes de ${lista.length}.` : "",
-        extra ? `\n${extra}` : ""
-    ].join("\n");
+        extra || ""
+    ].filter(Boolean).join("\n");
 }
 
 function contarApostasSimplesAtivas() {
-    let total = 0;
-
-    for (const jogoId of Object.keys(apostasValores)) {
-        const apostasDoJogo = Array.isArray(apostasValores[jogoId]) ? apostasValores[jogoId] : [];
-        total += apostasDoJogo.length;
-    }
-
-    return total;
+    return Object.values(apostasValores).reduce((acc, apostasDoJogo) => {
+        return acc + (Array.isArray(apostasDoJogo) ? apostasDoJogo.length : 0);
+    }, 0);
 }
 
 function somarApostasSimplesAtivas() {
-    let total = 0;
-
-    for (const jogoId of Object.keys(apostasValores)) {
-        const apostasDoJogo = Array.isArray(apostasValores[jogoId]) ? apostasValores[jogoId] : [];
-
-        for (const aposta of apostasDoJogo) {
-            total += Number(aposta?.valor || 0);
-        }
-    }
-
-    return total;
+    return Object.values(apostasValores).reduce((acc, apostasDoJogo) => {
+        if (!Array.isArray(apostasDoJogo)) return acc;
+        return acc + apostasDoJogo.reduce((sub, aposta) => sub + Number(aposta?.valor || 0), 0);
+    }, 0);
 }
 
 function contarMultiplasAtivas() {
@@ -335,8 +386,8 @@ function montarConteudoPainelStaff(extra = "") {
         "",
         `💰 Total apostado em simples ativas: **${totalSimples.toFixed(2)} moedas**`,
         `💰 Total apostado em múltiplas ativas: **${totalMultiplas.toFixed(2)} moedas**`,
-        extra ? `\n${extra}` : ""
-    ].join("\n");
+        extra || ""
+    ].filter(Boolean).join("\n");
 }
 
 function montarRankingGeralTexto() {
@@ -348,13 +399,11 @@ function montarRankingGeralTexto() {
         return "❌ Ainda não há jogadores no ranking de moedas.";
     }
 
-    const textoRanking = ranking
-        .map(([userId, saldo], index) => {
-            return `${index + 1}. <@${userId}> — **${Number(saldo).toFixed(2)} moedas**`;
-        })
-        .join("\n");
-
-    return `🏆 **RANKING GERAL DE MOEDAS**\n\n${textoRanking}`;
+    return [
+        "🏆 **RANKING GERAL DE MOEDAS**",
+        "",
+        ...ranking.map(([userId, saldo], index) => `${index + 1}. <@${userId}> — **${Number(saldo).toFixed(2)} moedas**`)
+    ].join("\n");
 }
 
 function montarHistoricoCompletoTexto() {
@@ -368,7 +417,6 @@ function montarHistoricoCompletoTexto() {
 
     for (const userId of userIds) {
         const lista = Array.isArray(historicoApostas[userId]) ? [...historicoApostas[userId]] : [];
-
         texto += `👤 <@${userId}>\n`;
 
         if (lista.length === 0) {
@@ -381,14 +429,15 @@ function montarHistoricoCompletoTexto() {
         for (const aposta of lista.slice(0, 10)) {
             if (aposta.tipo === "simples") {
                 texto += `• **Simples** | ${formatarStatusAposta(aposta.status)} | Jogo: \`${aposta.jogo}\` | Escolha: **${aposta.nomeEscolha || aposta.escolha}** | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd: **${Number(aposta.odd).toFixed(2)}**\n`;
-            } else {
-                const selecoesTexto = Array.isArray(aposta.selecoes)
-                    ? aposta.selecoes.map(s => `${s.jogo}: ${s.nomeEscolha}`).join(", ")
-                    : "sem seleções";
-
-                texto += `• **Múltipla** | ${formatarStatusAposta(aposta.status)} | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**\n`;
-                texto += `  Seleções: ${selecoesTexto}\n`;
+                continue;
             }
+
+            const selecoesTexto = Array.isArray(aposta.selecoes)
+                ? aposta.selecoes.map(s => `${s.jogo}: ${s.nomeEscolha}`).join(", ")
+                : "sem seleções";
+
+            texto += `• **Múltipla** | ${formatarStatusAposta(aposta.status)} | Valor: **${Number(aposta.valor).toFixed(2)}** | Odd total: **${Number(aposta.oddTotal).toFixed(2)}**\n`;
+            texto += `  Seleções: ${selecoesTexto}\n`;
         }
 
         if (lista.length > 10) {
@@ -428,39 +477,29 @@ function montarConteudoPainelAposta(userId, indice, extra = "") {
         return [
             "🎟️ **PAINEL DE APOSTA**",
             "",
-            "❌ Não há jogos com mercado aberto no momento.",
+            "❌ Nenhum jogo disponível no momento.",
             "",
-            `💰 Seu saldo: **${saldo.toFixed(2)} moedas**`,
+            `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
             `🧾 Itens no bilhete: **${itensBilhete}**`,
-            extra ? `\n${extra}` : ""
-        ].join("\n");
+            extra || ""
+        ].filter(Boolean).join("\n");
     }
 
     const indiceAtual = normalizarIndicePainel(indice, jogosDisponiveis.length);
     const [jogoId, jogo] = jogosDisponiveis[indiceAtual];
-
-    const jaNoBilhete = Array.isArray(carrinhos[userId])
-        ? carrinhos[userId].some(item => item.jogo === jogoId)
-        : false;
+    const dataJogo = obterDataJogo(jogo);
+    const horarioJogo = obterHorarioJogo(jogo);
 
     return [
         "🎟️ **PAINEL DE APOSTA**",
         "",
         `📍 Jogo **${indiceAtual + 1}/${jogosDisponiveis.length}**`,
         `🆔 ID: \`${jogoId}\``,
-        `⚽ **${jogo.time1} x ${jogo.time2}**`,
-        `📅 Data: **${jogo.data || "não informada"}**`,
-        `🕒 Hora: **${jogo.hora || "não informada"}**`,
-        `📌 Status: **${jogo.aberto ? "Mercado aberto" : "Mercado fechado"}**`,
-        "",
-        `1️⃣ **${jogo.time1}** — Odd **${formatarOdd(jogo.odd1)}**`,
-        `🤝 **Empate** — Odd **${formatarOdd(jogo.oddEmpate)}**`,
-        `2️⃣ **${jogo.time2}** — Odd **${formatarOdd(jogo.odd2)}**`,
-        "",
-        `💰 Seu saldo: **${saldo.toFixed(2)} moedas**`,
+        dataJogo ? `📅 Data: **${dataJogo}**` : "",
+        horarioJogo ? `🕒 Hora: **${horarioJogo}**` : "",
+        `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
         `🧾 Itens no bilhete: **${itensBilhete}**`,
-        jaNoBilhete ? "⚠️ Você já tem uma seleção desse jogo no bilhete atual." : "",
-        extra ? `\n${extra}` : ""
+        extra || ""
     ].filter(Boolean).join("\n");
 }
 
@@ -472,46 +511,52 @@ function criarBotoesPainelAposta(userId, indice) {
     }
 
     const indiceAtual = normalizarIndicePainel(indice, jogosDisponiveis.length);
-    const [jogoId] = jogosDisponiveis[indiceAtual];
+    const [jogoId, jogo] = jogosDisponiveis[indiceAtual];
 
-    const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`mercado_apostar|${userId}|${jogoId}|time1`)
-            .setLabel("Time 1")
-            .setStyle(ButtonStyle.Primary),
+    const labelTime1 = limitarTexto(`${jogo.time1} (${formatarOdd(jogo.odd1)})`, 40);
+    const labelEmpate = limitarTexto(`Empate (${formatarOdd(jogo.oddEmpate)})`, 40);
+    const labelTime2 = limitarTexto(`${jogo.time2} (${formatarOdd(jogo.odd2)})`, 40);
 
-        new ButtonBuilder()
-            .setCustomId(`mercado_apostar|${userId}|${jogoId}|empate`)
-            .setLabel("Empate")
-            .setStyle(ButtonStyle.Secondary),
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`mercado_apostar|${userId}|${jogoId}|time1`)
+                .setLabel(labelTime1)
+                .setStyle(ButtonStyle.Primary),
 
-        new ButtonBuilder()
-            .setCustomId(`mercado_apostar|${userId}|${jogoId}|time2`)
-            .setLabel("Time 2")
-            .setStyle(ButtonStyle.Primary)
-    );
+            new ButtonBuilder()
+                .setCustomId(`mercado_apostar|${userId}|${jogoId}|empate`)
+                .setLabel(labelEmpate)
+                .setStyle(ButtonStyle.Secondary),
 
-    const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`mercado_nav|${userId}|${indiceAtual - 1}`)
-            .setLabel("⬅️ Anterior")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(jogosDisponiveis.length <= 1),
+            new ButtonBuilder()
+                .setCustomId(`mercado_apostar|${userId}|${jogoId}|time2`)
+                .setLabel(labelTime2)
+                .setStyle(ButtonStyle.Primary)
+        ),
 
-        new ButtonBuilder()
-            .setCustomId(`mercado_indicador|${userId}|${indiceAtual}`)
-            .setLabel(`${indiceAtual + 1}/${jogosDisponiveis.length}`)
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(true),
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`mercado_nav|${userId}|${indiceAtual - 1}`)
+                .setLabel("⬅️ Anterior")
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(jogosDisponiveis.length <= 1),
 
-        new ButtonBuilder()
-            .setCustomId(`mercado_nav|${userId}|${indiceAtual + 1}`)
-            .setLabel("Próximo ➡️")
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(jogosDisponiveis.length <= 1)
-    );
+            new ButtonBuilder()
+                .setCustomId(`mercado_indicador|${userId}|${indiceAtual}`)
+                .setLabel(`${indiceAtual + 1}/${jogosDisponiveis.length}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true),
 
-    return [row1, row2, criarBotoesPainel(userId)];
+            new ButtonBuilder()
+                .setCustomId(`mercado_nav|${userId}|${indiceAtual + 1}`)
+                .setLabel("Próximo ➡️")
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(jogosDisponiveis.length <= 1)
+        ),
+
+        criarBotoesPainel(userId)
+    ];
 }
 
 async function responderPainelAposta(interaction, userId, indice = 0, extra = "") {
@@ -522,10 +567,7 @@ async function responderPainelAposta(interaction, userId, indice = 0, extra = ""
     };
 
     if (interaction.isButton() && interaction.customId === "abrir_painel_aposta_publico") {
-        return interaction.reply({
-            ...payload,
-            ephemeral: true
-        });
+        return interaction.reply({ ...payload, ephemeral: true });
     }
 
     if (interaction.isButton() && interaction.customId.startsWith("mercado_")) {
@@ -533,25 +575,17 @@ async function responderPainelAposta(interaction, userId, indice = 0, extra = ""
     }
 
     if (interaction.deferred || interaction.replied) {
-        return interaction.followUp({
-            ...payload,
-            ephemeral: true
-        });
+        return interaction.followUp({ ...payload, ephemeral: true });
     }
 
-    return interaction.reply({
-        ...payload,
-        ephemeral: true
-    });
+    return interaction.reply({ ...payload, ephemeral: true });
 }
 
 async function atualizarOuCriarPainelBilhete(interaction, userId, extra = "", modo = "bilhete") {
-    const conteudo = modo === "apostas"
-        ? montarConteudoMinhasApostas(userId, extra)
-        : montarConteudoBilhete(userId, extra);
-
     const payload = {
-        content: conteudo,
+        content: modo === "apostas"
+            ? montarConteudoMinhasApostas(userId, extra)
+            : montarConteudoBilhete(userId, extra),
         components: [criarBotoesPainel(userId)],
         allowedMentions: { parse: [] },
         ephemeral: true
@@ -581,10 +615,7 @@ async function atualizarOuCriarPainelStaff(interaction, extra = "") {
 
 async function processarFechamentoAutomaticoMercados() {
     const jogosFechados = fecharMercadosAutomaticamente(jogos);
-
-    if (jogosFechados.length === 0) {
-        return;
-    }
+    if (jogosFechados.length === 0) return;
 
     saveAll();
 
@@ -598,6 +629,25 @@ async function processarFechamentoAutomaticoMercados() {
     }
 }
 
+async function registrarComandos(rest, clientId) {
+    const body = slashCommands.map(command => command.data.toJSON());
+
+    console.log("Limpando comandos globais antigos...");
+    await rest.put(Routes.applicationCommands(clientId), { body: [] });
+
+    console.log("Limpando comandos antigos do servidor...");
+    await rest.put(
+        Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
+        { body: [] }
+    );
+
+    console.log("Registrando comandos do servidor...");
+    await rest.put(
+        Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
+        { body }
+    );
+}
+
 client.once("clientReady", async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Database carregado de: ${DB_PATH}`);
@@ -606,30 +656,10 @@ client.once("clientReady", async () => {
     const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
     try {
-        console.log("Registering slash commands...");
-
-        await rest.put(
-            Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
-            {
-                body: [
-                    pingCommand.data.toJSON(),
-                    saldoCommand.data.toJSON(),
-                    apostarCommand.data.toJSON(),
-                    criarApostaCommand.data.toJSON(),
-                    fecharMercadoCommand.data.toJSON(),
-                    resultadoJogoCommand.data.toJSON(),
-                    rankingCommand.data.toJSON(),
-                    rankingRodadaCommand.data.toJSON(),
-                    resetarRodadaCommand.data.toJSON(),
-                    verApostasCommand.data.toJSON(),
-                    painelStaffCommand.data.toJSON()
-                ]
-            }
-        );
-
-        console.log("Slash commands registered.");
+        await registrarComandos(rest, clientId);
+        console.log("Slash commands registrados com sucesso.");
     } catch (error) {
-        console.error(error);
+        console.error("Erro ao registrar comandos:", error);
     }
 
     await processarFechamentoAutomaticoMercados();
@@ -716,17 +746,7 @@ client.on("interactionCreate", async (interaction) => {
 
         if (customId === "abrir_painel_aposta_publico") {
             const userId = interaction.user.id;
-
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-                saveAll();
-            }
-
-            if (!Array.isArray(carrinhos[userId])) {
-                carrinhos[userId] = [];
-                saveAll();
-            }
-
+            garantirUsuario(userId);
             return responderPainelAposta(interaction, userId, 0);
         }
 
@@ -744,15 +764,8 @@ client.on("interactionCreate", async (interaction) => {
             return responderPainelAposta(interaction, userId, Number(indiceTexto));
         }
 
-        if (customId.startsWith("mercado_indicador|")) {
-            return interaction.reply({
-                content: "📍 Use os botões Anterior e Próximo para navegar pelos jogos.",
-                ephemeral: true
-            });
-        }
-
         if (customId.startsWith("mercado_apostar|")) {
-            const [, ownerId, jogo, escolha] = customId.split("|");
+            const [, ownerId, jogoId, escolha] = customId.split("|");
             const userId = interaction.user.id;
 
             if (userId !== ownerId) {
@@ -762,90 +775,62 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
-            if (!jogos[jogo]) {
+            if (!jogos[jogoId]) {
                 return responderPainelAposta(interaction, userId, 0, "❌ Esse jogo não existe mais.");
             }
 
-            if (!jogos[jogo].aberto) {
-                const indiceJogoFechado = obterIndiceJogoNoPainel(jogo);
+            if (!jogos[jogoId].aberto) {
+                const indiceJogo = obterIndiceJogoNoPainel(jogoId);
                 return responderPainelAposta(
                     interaction,
                     userId,
-                    indiceJogoFechado >= 0 ? indiceJogoFechado : 0,
+                    indiceJogo >= 0 ? indiceJogo : 0,
                     "❌ As apostas para esse jogo estão fechadas."
                 );
             }
 
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-            }
+            garantirUsuario(userId);
 
-            if (!Array.isArray(carrinhos[userId])) {
-                carrinhos[userId] = [];
-            }
-
-            const jaExisteNoBilhete = carrinhos[userId].some(item => item.jogo === jogo);
-
+            const jaExisteNoBilhete = carrinhos[userId].some(item => item.jogo === jogoId);
             if (jaExisteNoBilhete) {
-                const indiceAtual = obterIndiceJogoNoPainel(jogo);
+                const indiceJogo = obterIndiceJogoNoPainel(jogoId);
                 return responderPainelAposta(
                     interaction,
                     userId,
-                    indiceAtual >= 0 ? indiceAtual : 0,
+                    indiceJogo >= 0 ? indiceJogo : 0,
                     "❌ Você já adicionou uma opção desse jogo no seu bilhete."
                 );
             }
 
-            let odd = 1;
-            let nomeEscolha = "";
-
-            if (escolha === "time1") {
-                odd = Number(jogos[jogo].odd1);
-                nomeEscolha = jogos[jogo].time1;
-            }
-
-            if (escolha === "empate") {
-                odd = Number(jogos[jogo].oddEmpate);
-                nomeEscolha = "Empate";
-            }
-
-            if (escolha === "time2") {
-                odd = Number(jogos[jogo].odd2);
-                nomeEscolha = jogos[jogo].time2;
-            }
-
+            const selecao = obterSelecaoDoJogo(jogos[jogoId], escolha);
             carrinhos[userId].push({
-                jogo,
+                jogo: jogoId,
                 escolha,
-                odd,
-                nomeEscolha
+                odd: selecao.odd,
+                nomeEscolha: selecao.nomeEscolha
             });
-
             saveAll();
 
-            const indiceAtual = obterIndiceJogoNoPainel(jogo);
-
+            const indiceJogo = obterIndiceJogoNoPainel(jogoId);
             return responderPainelAposta(
                 interaction,
                 userId,
-                indiceAtual >= 0 ? indiceAtual : 0,
+                indiceJogo >= 0 ? indiceJogo : 0,
                 "✅ Seleção adicionada ao bilhete."
             );
         }
 
         if (customId.startsWith("bet|")) {
-            const [tipo, jogo, escolha] = customId.split("|");
+            const [, jogoId, escolha] = customId.split("|");
 
-            if (tipo !== "bet") return;
-
-            if (!jogos[jogo]) {
+            if (!jogos[jogoId]) {
                 return interaction.reply({
                     content: "❌ Esse jogo não existe mais.",
                     ephemeral: true
                 });
             }
 
-            if (!jogos[jogo].aberto) {
+            if (!jogos[jogoId].aberto) {
                 return interaction.reply({
                     content: "❌ As apostas para esse jogo estão fechadas.",
                     ephemeral: true
@@ -853,17 +838,9 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             const userId = interaction.user.id;
+            garantirUsuario(userId);
 
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-            }
-
-            if (!Array.isArray(carrinhos[userId])) {
-                carrinhos[userId] = [];
-            }
-
-            const jaExisteNoBilhete = carrinhos[userId].some(item => item.jogo === jogo);
-
+            const jaExisteNoBilhete = carrinhos[userId].some(item => item.jogo === jogoId);
             if (jaExisteNoBilhete) {
                 return interaction.reply({
                     content: "❌ Você já adicionou uma opção desse jogo no seu bilhete.",
@@ -871,31 +848,13 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
-            let odd = 1;
-            let nomeEscolha = "";
-
-            if (escolha === "time1") {
-                odd = Number(jogos[jogo].odd1);
-                nomeEscolha = jogos[jogo].time1;
-            }
-
-            if (escolha === "empate") {
-                odd = Number(jogos[jogo].oddEmpate);
-                nomeEscolha = "Empate";
-            }
-
-            if (escolha === "time2") {
-                odd = Number(jogos[jogo].odd2);
-                nomeEscolha = jogos[jogo].time2;
-            }
-
+            const selecao = obterSelecaoDoJogo(jogos[jogoId], escolha);
             carrinhos[userId].push({
-                jogo,
+                jogo: jogoId,
                 escolha,
-                odd,
-                nomeEscolha
+                odd: selecao.odd,
+                nomeEscolha: selecao.nomeEscolha
             });
-
             saveAll();
 
             return atualizarOuCriarPainelBilhete(interaction, userId, "✅ Bilhete atualizado.", "bilhete");
@@ -912,10 +871,7 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-                saveAll();
-            }
+            garantirUsuario(userId);
 
             if (acao === "painel_saldo") {
                 return atualizarOuCriarPainelBilhete(interaction, userId, "💰 Saldo atualizado.", "bilhete");
@@ -937,7 +893,7 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             if (acao === "painel_fechar") {
-                if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
+                if (carrinhos[userId].length === 0) {
                     return interaction.reply({
                         content: "❌ Seu bilhete está vazio.",
                         ephemeral: true
@@ -946,17 +902,17 @@ client.on("interactionCreate", async (interaction) => {
 
                 const modal = new ModalBuilder()
                     .setCustomId(`modal_concluir_aposta|${userId}`)
-                    .setTitle("Concluir aposta");
-
-                const valorInput = new TextInputBuilder()
-                    .setCustomId("valor")
-                    .setLabel("Digite o valor da aposta")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: 10")
-                    .setRequired(true);
-
-                const row = new ActionRowBuilder().addComponents(valorInput);
-                modal.addComponents(row);
+                    .setTitle("Concluir aposta")
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId("valor")
+                                .setLabel("Digite o valor da aposta")
+                                .setStyle(TextInputStyle.Short)
+                                .setPlaceholder("Ex: 10")
+                                .setRequired(true)
+                        )
+                    );
 
                 return interaction.showModal(modal);
             }
@@ -982,8 +938,7 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             if (customId === "staff_ver_apostas") {
-                const texto = montarHistoricoCompletoTexto();
-                const blocos = dividirEmBlocos(texto);
+                const blocos = dividirEmBlocos(montarHistoricoCompletoTexto());
 
                 await interaction.reply({
                     content: blocos[0],
@@ -1003,16 +958,8 @@ client.on("interactionCreate", async (interaction) => {
             if (customId === "staff_postar_painel_aposta") {
                 const embed = new EmbedBuilder()
                     .setTitle("🎟️ PAINEL DE APOSTA")
-                    .setDescription("Clique no botão abaixo para abrir o mercado da rodada e navegar entre os jogos disponíveis.")
-                    .addFields(
-                        {
-                            name: "📌 Como funciona",
-                            value: "• o painel abre no privado\n• você navega jogo por jogo\n• pode adicionar seleções ao bilhete\n• depois é só clicar em **Concluir aposta**"
-                        }
-                    )
-                    .setFooter({
-                        text: "BetPRL • Paraisópolis"
-                    });
+                    .setDescription("Clique no botão abaixo para abrir o painel privado da rodada.")
+                    .setFooter({ text: "BetPRL • Paraisópolis" });
 
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
@@ -1029,56 +976,29 @@ client.on("interactionCreate", async (interaction) => {
                 return atualizarOuCriarPainelStaff(interaction, "✅ Painel de aposta postado no canal.");
             }
 
-            if (customId === "staff_adicionar_moedas") {
+            if (customId === "staff_adicionar_moedas" || customId === "staff_remover_moedas") {
+                const adicionando = customId === "staff_adicionar_moedas";
                 const modal = new ModalBuilder()
-                    .setCustomId("modal_staff_adicionar_moedas")
-                    .setTitle("Adicionar moedas");
-
-                const usuarioInput = new TextInputBuilder()
-                    .setCustomId("usuario")
-                    .setLabel("Mencione ou cole o ID do membro")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: @usuario ou 123456789...")
-                    .setRequired(true);
-
-                const valorInput = new TextInputBuilder()
-                    .setCustomId("valor")
-                    .setLabel("Quantidade de moedas")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: 100")
-                    .setRequired(true);
-
-                modal.addComponents(
-                    new ActionRowBuilder().addComponents(usuarioInput),
-                    new ActionRowBuilder().addComponents(valorInput)
-                );
-
-                return interaction.showModal(modal);
-            }
-
-            if (customId === "staff_remover_moedas") {
-                const modal = new ModalBuilder()
-                    .setCustomId("modal_staff_remover_moedas")
-                    .setTitle("Remover moedas");
-
-                const usuarioInput = new TextInputBuilder()
-                    .setCustomId("usuario")
-                    .setLabel("Mencione ou cole o ID do membro")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: @usuario ou 123456789...")
-                    .setRequired(true);
-
-                const valorInput = new TextInputBuilder()
-                    .setCustomId("valor")
-                    .setLabel("Quantidade de moedas")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: 100")
-                    .setRequired(true);
-
-                modal.addComponents(
-                    new ActionRowBuilder().addComponents(usuarioInput),
-                    new ActionRowBuilder().addComponents(valorInput)
-                );
+                    .setCustomId(adicionando ? "modal_staff_adicionar_moedas" : "modal_staff_remover_moedas")
+                    .setTitle(adicionando ? "Adicionar moedas" : "Remover moedas")
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId("usuario")
+                                .setLabel("Mencione ou cole o ID do membro")
+                                .setStyle(TextInputStyle.Short)
+                                .setPlaceholder("Ex: @usuario ou 123456789...")
+                                .setRequired(true)
+                        ),
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId("valor")
+                                .setLabel("Quantidade de moedas")
+                                .setStyle(TextInputStyle.Short)
+                                .setPlaceholder("Ex: 100")
+                                .setRequired(true)
+                        )
+                    );
 
                 return interaction.showModal(modal);
             }
@@ -1086,18 +1006,17 @@ client.on("interactionCreate", async (interaction) => {
             if (customId === "staff_ver_saldo_membro") {
                 const modal = new ModalBuilder()
                     .setCustomId("modal_staff_ver_saldo")
-                    .setTitle("Ver saldo de membro");
-
-                const usuarioInput = new TextInputBuilder()
-                    .setCustomId("usuario")
-                    .setLabel("Mencione ou cole o ID do membro")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: @usuario ou 123456789...")
-                    .setRequired(true);
-
-                modal.addComponents(
-                    new ActionRowBuilder().addComponents(usuarioInput)
-                );
+                    .setTitle("Ver saldo de membro")
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId("usuario")
+                                .setLabel("Mencione ou cole o ID do membro")
+                                .setStyle(TextInputStyle.Short)
+                                .setPlaceholder("Ex: @usuario ou 123456789...")
+                                .setRequired(true)
+                        )
+                    );
 
                 return interaction.showModal(modal);
             }
@@ -1105,18 +1024,17 @@ client.on("interactionCreate", async (interaction) => {
             if (customId === "staff_excluir_jogo") {
                 const modal = new ModalBuilder()
                     .setCustomId("modal_staff_excluir_jogo")
-                    .setTitle("Excluir jogo");
-
-                const jogoInput = new TextInputBuilder()
-                    .setCustomId("jogo")
-                    .setLabel("Digite o ID do jogo")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: vasco_corinthians")
-                    .setRequired(true);
-
-                modal.addComponents(
-                    new ActionRowBuilder().addComponents(jogoInput)
-                );
+                    .setTitle("Excluir jogo")
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId("jogo")
+                                .setLabel("Digite o ID do jogo")
+                                .setStyle(TextInputStyle.Short)
+                                .setPlaceholder("Ex: vasco_corinthians")
+                                .setRequired(true)
+                        )
+                    );
 
                 return interaction.showModal(modal);
             }
@@ -1128,7 +1046,6 @@ client.on("interactionCreate", async (interaction) => {
 
                 painelRodada.channelId = null;
                 painelRodada.messageId = null;
-
                 saveAll();
 
                 return atualizarOuCriarPainelStaff(interaction, "🗑️ Ranking da rodada resetado com sucesso.");
@@ -1148,11 +1065,9 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-            }
+            garantirUsuario(userId);
 
-            if (!Array.isArray(carrinhos[userId]) || carrinhos[userId].length === 0) {
+            if (carrinhos[userId].length === 0) {
                 return interaction.reply({
                     content: "❌ Seu bilhete está vazio.",
                     ephemeral: true
@@ -1166,7 +1081,6 @@ client.on("interactionCreate", async (interaction) => {
 
             if (selecoesInvalidas.length > 0) {
                 const jogosInvalidos = selecoesInvalidas.map(item => `• \`${item.jogo}\``).join("\n");
-
                 return interaction.reply({
                     content:
 `❌ Não foi possível concluir essa aposta porque há jogo(s) indisponível(is) no bilhete:
@@ -1178,9 +1092,7 @@ Use **Limpar bilhete** e monte novamente com mercados abertos.`,
                 });
             }
 
-            const valorTexto = interaction.fields.getTextInputValue("valor");
-            const valor = parseFloat(valorTexto.replace(",", "."));
-
+            const valor = parseFloat(interaction.fields.getTextInputValue("valor").replace(",", "."));
             if (Number.isNaN(valor) || valor <= 0) {
                 return interaction.reply({
                     content: "❌ Digite um valor válido maior que 0.",
@@ -1195,14 +1107,15 @@ Use **Limpar bilhete** e monte novamente com mercados abertos.`,
                 });
             }
 
-            let oddTotal = 1;
-
-            for (const selecao of carrinhos[userId]) {
-                oddTotal *= Number(selecao.odd);
-            }
-
+            const oddTotal = carrinhos[userId].reduce((acc, selecao) => acc * Number(selecao.odd), 1);
             const retornoPossivel = valor * oddTotal;
             const idAposta = gerarIdAposta();
+            const selecoes = carrinhos[userId].map(item => ({
+                jogo: item.jogo,
+                escolha: item.escolha,
+                odd: Number(item.odd),
+                nomeEscolha: item.nomeEscolha
+            }));
 
             saldos[userId] = Number(saldos[userId]) - valor;
 
@@ -1212,12 +1125,7 @@ Use **Limpar bilhete** e monte novamente com mercados abertos.`,
                 valor: Number(valor),
                 oddTotal: Number(oddTotal),
                 retornoPossivel: Number(retornoPossivel),
-                selecoes: carrinhos[userId].map(item => ({
-                    jogo: item.jogo,
-                    escolha: item.escolha,
-                    odd: Number(item.odd),
-                    nomeEscolha: item.nomeEscolha
-                })),
+                selecoes,
                 resolvida: false,
                 criadaEm: new Date().toISOString()
             });
@@ -1232,18 +1140,13 @@ Use **Limpar bilhete** e monte novamente com mercados abertos.`,
                 valor: Number(valor),
                 oddTotal: Number(oddTotal),
                 retornoPossivel: Number(retornoPossivel),
-                selecoes: carrinhos[userId].map(item => ({
-                    jogo: item.jogo,
-                    escolha: item.escolha,
-                    odd: Number(item.odd),
-                    nomeEscolha: item.nomeEscolha
-                })),
+                selecoes,
                 status: "ativa",
                 criadaEm: new Date().toISOString()
             });
 
-            const lista = carrinhos[userId]
-                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${Number(item.odd).toFixed(2)})`)
+            const lista = selecoes
+                .map(item => `🎯 **${item.jogo}** → **${item.nomeEscolha}** (${formatarOdd(item.odd)})`)
                 .join("\n");
 
             saveAll();
@@ -1270,7 +1173,7 @@ ${lista}
             return;
         }
 
-        if (interaction.customId === "modal_staff_adicionar_moedas") {
+        if (interaction.customId === "modal_staff_adicionar_moedas" || interaction.customId === "modal_staff_remover_moedas") {
             if (!temPermissaoStaff(interaction)) {
                 return interaction.reply({
                     content: "❌ Você não tem permissão para isso.",
@@ -1278,11 +1181,9 @@ ${lista}
                 });
             }
 
-            const usuarioTexto = interaction.fields.getTextInputValue("usuario");
-            const valorTexto = interaction.fields.getTextInputValue("valor");
-
-            const userId = extrairUserId(usuarioTexto);
-            const valor = parseFloat(valorTexto.replace(",", "."));
+            const userId = extrairUserId(interaction.fields.getTextInputValue("usuario"));
+            const valor = parseFloat(interaction.fields.getTextInputValue("valor").replace(",", "."));
+            const adicionando = interaction.customId === "modal_staff_adicionar_moedas";
 
             if (!userId) {
                 return interaction.reply({
@@ -1298,63 +1199,25 @@ ${lista}
                 });
             }
 
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-            }
+            garantirUsuario(userId);
 
-            saldos[userId] = Number(saldos[userId]) + Number(valor);
-            saveAll();
-
-            return interaction.reply({
-                content: `✅ Foram adicionadas **${Number(valor).toFixed(2)} moedas** para <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
-                ephemeral: true
-            });
-        }
-
-        if (interaction.customId === "modal_staff_remover_moedas") {
-            if (!temPermissaoStaff(interaction)) {
-                return interaction.reply({
-                    content: "❌ Você não tem permissão para isso.",
-                    ephemeral: true
-                });
-            }
-
-            const usuarioTexto = interaction.fields.getTextInputValue("usuario");
-            const valorTexto = interaction.fields.getTextInputValue("valor");
-
-            const userId = extrairUserId(usuarioTexto);
-            const valor = parseFloat(valorTexto.replace(",", "."));
-
-            if (!userId) {
-                return interaction.reply({
-                    content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
-                    ephemeral: true
-                });
-            }
-
-            if (Number.isNaN(valor) || valor <= 0) {
-                return interaction.reply({
-                    content: "❌ Digite um valor válido maior que 0.",
-                    ephemeral: true
-                });
-            }
-
-            if (saldos[userId] == null) {
-                saldos[userId] = 100;
-            }
-
-            if (Number(saldos[userId]) < valor) {
+            if (!adicionando && Number(saldos[userId]) < valor) {
                 return interaction.reply({
                     content: `❌ Esse membro não tem moedas suficientes para essa remoção.\n💰 Saldo atual: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                     ephemeral: true
                 });
             }
 
-            saldos[userId] = Number(saldos[userId]) - Number(valor);
+            saldos[userId] = adicionando
+                ? Number(saldos[userId]) + Number(valor)
+                : Number(saldos[userId]) - Number(valor);
+
             saveAll();
 
             return interaction.reply({
-                content: `✅ Foram removidas **${Number(valor).toFixed(2)} moedas** de <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
+                content: adicionando
+                    ? `✅ Foram adicionadas **${Number(valor).toFixed(2)} moedas** para <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`
+                    : `✅ Foram removidas **${Number(valor).toFixed(2)} moedas** de <@${userId}>.\n💰 Novo saldo: **${Number(saldos[userId]).toFixed(2)} moedas**`,
                 ephemeral: true
             });
         }
@@ -1367,9 +1230,7 @@ ${lista}
                 });
             }
 
-            const usuarioTexto = interaction.fields.getTextInputValue("usuario");
-            const userId = extrairUserId(usuarioTexto);
-
+            const userId = extrairUserId(interaction.fields.getTextInputValue("usuario"));
             if (!userId) {
                 return interaction.reply({
                     content: "❌ Não consegui identificar o usuário. Use menção ou ID.",
@@ -1378,7 +1239,6 @@ ${lista}
             }
 
             const saldo = Number(saldos[userId] ?? 100);
-
             return interaction.reply({
                 content: `👤 Saldo de <@${userId}>: **${saldo.toFixed(2)} moedas**`,
                 ephemeral: true
@@ -1393,16 +1253,15 @@ ${lista}
                 });
             }
 
-            const jogo = interaction.fields.getTextInputValue("jogo").trim().toLowerCase();
-
-            if (!jogos[jogo]) {
+            const jogoId = interaction.fields.getTextInputValue("jogo").trim().toLowerCase();
+            if (!jogos[jogoId]) {
                 return interaction.reply({
-                    content: `❌ O jogo \`${jogo}\` não existe.`,
+                    content: `❌ O jogo \`${jogoId}\` não existe.`,
                     ephemeral: true
                 });
             }
 
-            if (Array.isArray(apostasValores[jogo]) && apostasValores[jogo].length > 0) {
+            if (Array.isArray(apostasValores[jogoId]) && apostasValores[jogoId].length > 0) {
                 return interaction.reply({
                     content: "❌ Não é possível excluir esse jogo porque já existem apostas simples vinculadas a ele.",
                     ephemeral: true
@@ -1410,7 +1269,7 @@ ${lista}
             }
 
             const existeEmCarrinho = Object.values(carrinhos).some(lista =>
-                Array.isArray(lista) && lista.some(item => item.jogo === jogo)
+                Array.isArray(lista) && lista.some(item => item.jogo === jogoId)
             );
 
             if (existeEmCarrinho) {
@@ -1423,7 +1282,7 @@ ${lista}
             const existeEmMultipla = multiplas.some(multipla =>
                 multipla &&
                 Array.isArray(multipla.selecoes) &&
-                multipla.selecoes.some(item => item.jogo === jogo)
+                multipla.selecoes.some(item => item.jogo === jogoId)
             );
 
             if (existeEmMultipla) {
@@ -1433,11 +1292,11 @@ ${lista}
                 });
             }
 
-            delete jogos[jogo];
+            delete jogos[jogoId];
             saveAll();
 
             return interaction.reply({
-                content: `✅ O jogo \`${jogo}\` foi excluído com sucesso.`,
+                content: `✅ O jogo \`${jogoId}\` foi excluído com sucesso.`,
                 ephemeral: true
             });
         }
