@@ -552,6 +552,7 @@ function montarConteudoPainelAposta(userId, indice, extra = "") {
         "",
         `📍 Jogo **${indiceAtual + 1}/${jogosDisponiveis.length}**`,
         `🆔 ID: \`${jogoId}\``,
+        `⚽ Partida: **${jogo.time1} x ${jogo.time2}**`,
         dataJogo ? `📅 Data: **${dataJogo}**` : "",
         horarioJogo ? `🕒 Hora: **${horarioJogo}**` : "",
         `💰 Saldo: **${saldo.toFixed(2)} moedas**`,
