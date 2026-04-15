@@ -135,6 +135,20 @@ function limitarTexto(texto, limite = 40) {
     return `${valor.slice(0, limite - 3)}...`;
 }
 
+function formatarDataPainelBR(data) {
+    if (!data) return "";
+
+    const texto = String(data).trim();
+    const partes = texto.split("-");
+
+    if (partes.length !== 3) {
+        return texto;
+    }
+
+    const [ano, mes, dia] = partes;
+    return `${dia}/${mes}/${ano}`;
+}
+
 function obterDataJogo(jogo) {
     return jogo?.dataJogo || jogo?.data || "";
 }
@@ -249,7 +263,9 @@ function criarBotoesPainelStaff() {
 }
 
 function obterJogosDisponiveisParaPainel() {
-    return Object.entries(jogos).filter(([, jogo]) => jogo && jogo.aberto);
+    return Object.entries(jogos).filter(([, jogo]) => {
+        return jogo && jogo.aberto && !jogo.resultado;
+    });
 }
 
 function normalizarIndicePainel(indice, total) {
@@ -487,7 +503,7 @@ function montarConteudoPainelAposta(userId, indice, extra = "") {
 
     const indiceAtual = normalizarIndicePainel(indice, jogosDisponiveis.length);
     const [jogoId, jogo] = jogosDisponiveis[indiceAtual];
-    const dataJogo = obterDataJogo(jogo);
+    const dataJogo = formatarDataPainelBR(obterDataJogo(jogo));
     const horarioJogo = obterHorarioJogo(jogo);
 
     return [
@@ -775,17 +791,12 @@ client.on("interactionCreate", async (interaction) => {
                 });
             }
 
-            if (!jogos[jogoId]) {
-                return responderPainelAposta(interaction, userId, 0, "❌ Esse jogo não existe mais.");
-            }
-
-            if (!jogos[jogoId].aberto) {
-                const indiceJogo = obterIndiceJogoNoPainel(jogoId);
+            if (!jogos[jogoId] || !jogos[jogoId].aberto || jogos[jogoId].resultado) {
                 return responderPainelAposta(
                     interaction,
                     userId,
-                    indiceJogo >= 0 ? indiceJogo : 0,
-                    "❌ As apostas para esse jogo estão fechadas."
+                    0,
+                    "❌ Esse jogo saiu do painel porque o mercado foi fechado."
                 );
             }
 
@@ -1254,6 +1265,7 @@ ${lista}
             }
 
             const jogoId = interaction.fields.getTextInputValue("jogo").trim().toLowerCase();
+
             if (!jogos[jogoId]) {
                 return interaction.reply({
                     content: `❌ O jogo \`${jogoId}\` não existe.`,
