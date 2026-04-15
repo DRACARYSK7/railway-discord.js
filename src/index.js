@@ -135,6 +135,47 @@ function limitarTexto(texto, limite = 40) {
     return `${valor.slice(0, limite - 3)}...`;
 }
 
+function gerarSiglaTime(nome) {
+    const texto = String(nome || "").trim();
+    if (!texto) return "TIME";
+
+    const partes = texto
+        .split(/[\s/-]+/)
+        .map(parte => parte.replace(/[^A-Za-zÀ-ÿ0-9]/g, ""))
+        .filter(Boolean);
+
+    if (partes.length >= 2) {
+        return partes.map(parte => parte[0]).join("").toUpperCase().slice(0, 4);
+    }
+
+    const nomeLimpo = (partes[0] || texto).replace(/[^A-Za-zÀ-ÿ0-9]/g, "");
+    return nomeLimpo.slice(0, 3).toUpperCase();
+}
+
+function montarLabelBotaoTime(nome, odd, limiteTotal = 12) {
+    const oddTexto = ` (${formatarOdd(odd)})`;
+    const nomeCompleto = String(nome || "").trim().toUpperCase();
+    const labelCompleta = `${nomeCompleto}${oddTexto}`;
+
+    if (labelCompleta.length <= limiteTotal) {
+        return labelCompleta;
+    }
+
+    const sigla = gerarSiglaTime(nome);
+    const labelSigla = `${sigla}${oddTexto}`;
+
+    if (labelSigla.length <= limiteTotal) {
+        return labelSigla;
+    }
+
+    const espacoNome = Math.max(1, limiteTotal - oddTexto.length);
+    return `${sigla.slice(0, espacoNome)}${oddTexto}`;
+}
+
+function montarLabelBotaoEmpate(odd) {
+    return `X (${formatarOdd(odd)})`;
+}
+
 function formatarDataPainelBR(data) {
     if (!data) return "";
 
@@ -529,9 +570,9 @@ function criarBotoesPainelAposta(userId, indice) {
     const indiceAtual = normalizarIndicePainel(indice, jogosDisponiveis.length);
     const [jogoId, jogo] = jogosDisponiveis[indiceAtual];
 
-    const labelTime1 = limitarTexto(`${jogo.time1} (${formatarOdd(jogo.odd1)})`, 40);
-    const labelEmpate = limitarTexto(`Empate (${formatarOdd(jogo.oddEmpate)})`, 40);
-    const labelTime2 = limitarTexto(`${jogo.time2} (${formatarOdd(jogo.odd2)})`, 40);
+    const labelTime1 = montarLabelBotaoTime(jogo.time1, jogo.odd1, 12);
+    const labelEmpate = montarLabelBotaoEmpate(jogo.oddEmpate);
+    const labelTime2 = montarLabelBotaoTime(jogo.time2, jogo.odd2, 12);
 
     return [
         new ActionRowBuilder().addComponents(
@@ -548,7 +589,7 @@ function criarBotoesPainelAposta(userId, indice) {
             new ButtonBuilder()
                 .setCustomId(`mercado_apostar|${userId}|${jogoId}|time2`)
                 .setLabel(labelTime2)
-                .setStyle(ButtonStyle.Primary)
+                .setStyle(ButtonStyle.Danger)
         ),
 
         new ActionRowBuilder().addComponents(
