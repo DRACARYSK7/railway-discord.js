@@ -28,7 +28,8 @@ function formatarDataHoraBR(data, horario) {
 function jogoJaComecou(jogo) {
     if (!jogo?.dataJogo || !jogo?.horarioJogo) return false;
 
-    const dataHoraTexto = `${jogo.dataJogo}T${jogo.horarioJogo}:00`;
+    // Força o horário de Brasília (-03:00)
+    const dataHoraTexto = `${jogo.dataJogo}T${jogo.horarioJogo}:00-03:00`;
     const inicioJogo = new Date(dataHoraTexto);
 
     if (Number.isNaN(inicioJogo.getTime())) {
@@ -104,7 +105,7 @@ function montarMensagemJogo(jogoId, jogo, acertadoresSimples = []) {
         linhas.push(acertadoresSimples.map(userId => `• <@${userId}>`).join("\n"));
     }
 
-    if (!jogo.resultado) {
+    if (jogo.aberto && !jogo.resultado) {
         linhas.push("");
         linhas.push("Escolha uma opção abaixo para adicionar ao seu bilhete.");
     }
@@ -192,7 +193,7 @@ function montarRankingRodadaResumo(rodadaStats) {
 function montarResumoResultadosRodada(jogos, saldos, rodadaStats) {
     const finalizados = Object.entries(jogos)
         .filter(([, jogo]) => jogo?.resultado)
-        .map(([_, jogo]) => {
+        .map(([, jogo]) => {
             let resultadoTexto = "Aguardando";
 
             if (jogo.resultado === "time1") resultadoTexto = jogo.time1;
